@@ -11,7 +11,7 @@ export const G={
   state:'menu',time:0,dist:0,score:0,speed:8,cruise:13,
   x:0,vx:0,y:16,py:0,vy:0,grounded:true,
   stage:1,combo:0,mult:1,maxSpeed:0,
-  shake:0,camDip:0,camGroundY:0,crashT:0,crashReason:'',
+  crashT:0,crashReason:'',
   spinAngle:0,spinVel:0,visualSpin:0,
   grabbing:false,grabTime:0,takeoffT:0,jumpBuf:0,
   crouch:0,roll:0,boardYaw:0,fogT:0.015,windAmp:0,
