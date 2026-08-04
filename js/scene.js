@@ -91,9 +91,10 @@ function makeGroundTexture(){
     gr.addColorStop(1,'rgba(0,0,0,0)');
     g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);
   }
-  for(let y=0;y<512;y+=7){
-    g.fillStyle=(y%14<7)?'rgba(255,255,255,0.10)':'rgba(128,148,190,0.10)';
-    g.fillRect(0,y,512,2);
+  /* слабый вельвет — не «идеальная лыжня» */
+  for(let y=0;y<512;y+=9){
+    g.fillStyle=(y%18<9)?'rgba(255,255,255,0.06)':'rgba(128,148,190,0.055)';
+    g.fillRect(0,y,512,1);
   }
   for(let i=0;i<520;i++){
     g.fillStyle=`rgba(255,255,255,${rand(0.4,0.95)})`;
@@ -110,49 +111,156 @@ function makeGroundTexture(){
   return t;
 }
 const groundTex=makeGroundTexture();
-groundTex.repeat.set(7,42);
+groundTex.repeat.set(14,42);
 const TILE_LEN=340/42;
+/* широкий freeride-склон (без коридора) */
+const GROUND_W=180,GROUND_L=340,GROUND_Z=-130;
+const GROUND_SEG_X=72,GROUND_SEG_Z=110;
+/* ═══════════ noise-рельеф: хребты + чаши (не синус-жёлоб) ═══════════ */
+function hash2(ix,iz){
+  const n=Math.sin(ix*127.1+iz*311.7)*43758.5453123;
+  return n-Math.floor(n);
+}
+function valueNoise2(x,z){
+  const ix=Math.floor(x),iz=Math.floor(z);
+  const fx=x-ix,fz=z-iz;
+  const ux=fx*fx*(3-2*fx),uz=fz*fz*(3-2*fz);
+  const a=hash2(ix,iz),b=hash2(ix+1,iz),c=hash2(ix,iz+1),d=hash2(ix+1,iz+1);
+  return a+(b-a)*ux+(c-a)*uz+(a-b-c+d)*ux*uz;
+}
+function fbm2(x,z,oct=4){
+  let v=0,a=0.5,f=1,norm=0;
+  for(let i=0;i<oct;i++){
+    v+=a*valueNoise2(x*f,z*f);
+    norm+=a;a*=0.5;f*=2.03;
+  }
+  return v/norm;
+}
+/** Ridged multi-fractal: острые хребты, как горные гребни. */
+function ridged2(x,z,oct=4){
+  let v=0,a=0.5,f=1,norm=0,w=1;
+  for(let i=0;i<oct;i++){
+    let n=valueNoise2(x*f,z*f);
+    n=1-Math.abs(n*2-1);
+    n=n*n*w;
+    v+=n*a;
+    norm+=a;
+    w=Math.min(1,n*1.6);
+    a*=0.5;f*=2.07;
+  }
+  return v/norm;
+}
+/**
+ * Высота снега. courseZ = G.dist − worldZ (растёт по мере спуска).
+ * Открытая гора: нет edge-бортов, только дальние предгорья за freeride.
+ */
+function terrainHeight(x,courseZ){
+  const z=courseZ;
+  let h=16;
+  /* макро-хребты — главная «горность» */
+  h+=ridged2(x*0.011+2.4,z*0.0075+0.8,4)*10.5;
+  h+=ridged2(x*0.023-5.1,z*0.016+3.2,3)*4.8;
+  /* широкие чаши / полки */
+  h+=(fbm2(x*0.017+8.0,z*0.012-1.3,3)-0.5)*7.2;
+  /* средние бугры (читаемые, не тряска) */
+  h+=(fbm2(x*0.048+1.1,z*0.036+4.7,2)-0.5)*3.0;
+  /* лёгкая асимметрия, чтобы не было «плиты» */
+  h+=Math.sin(x*0.065+z*0.019)*0.55;
+  h+=Math.sin(x*0.028-z*0.041+1.7)*0.4;
+  /* микро-вельвет (слабо) */
+  h+=(fbm2(x*0.19,z*0.16,2)-0.5)*0.32;
+  /* дальние предгорья только ЗА freeride-зоной — декор, не стена */
+  const far=Math.max(0,Math.abs(x)-50)/28;
+  if(far>0){
+    const ff=far*far;
+    h+=ff*(10+ridged2(x*0.04,z*0.03,2)*8+fbm2(x*0.06,z*0.04,2)*4);
+  }
+  return h;
+}
+/** Наклон: dhdx (вбок), dhds (вдоль спуска; >0 = подъём впереди). */
+function terrainSlope(x,courseZ,e=0.7){
+  const h=terrainHeight(x,courseZ);
+  const dhdx=(terrainHeight(x+e,courseZ)-terrainHeight(x-e,courseZ))/(2*e);
+  const dhds=(terrainHeight(x,courseZ+e)-terrainHeight(x,courseZ-e))/(2*e);
+  return{h,dhdx,dhds};
+}
+const groundGeo=new THREE.PlaneGeometry(GROUND_W,GROUND_L,GROUND_SEG_X,GROUND_SEG_Z);
+const groundBase=new Float32Array(groundGeo.attributes.position.array); /* lx, ly, 0 */
 const ground=new THREE.Mesh(
-  new THREE.PlaneGeometry(96,340),
+  groundGeo,
   new THREE.MeshStandardMaterial({map:groundTex,roughness:0.95,metalness:0})
 );
-ground.rotation.x=-Math.PI/2;ground.position.z=-130;
+ground.rotation.x=-Math.PI/2;ground.position.z=GROUND_Z;
+ground.geometry.computeVertexNormals();
 scene.add(ground);
-/* снежные валы по краям трассы */
-const bankMat=new THREE.MeshStandardMaterial({color:0xe6ecf8,roughness:1});
-const bankGeo=new THREE.BoxGeometry(4,1.5,340);
-for(const s of[-1,1]){
-  const b=new THREE.Mesh(bankGeo,bankMat);
-  b.position.set(s*12.4,0.62,-130);scene.add(b);
+let _terrainNormFrame=0;
+function updateTerrain(dist){
+  const pos=groundGeo.attributes.position.array;
+  const n=pos.length/3;
+  for(let i=0;i<n;i++){
+    const i3=i*3;
+    const lx=groundBase[i3],ly=groundBase[i3+1];
+    /* после rot.x=-π/2: world=(lx, localZ, -ly+GROUND_Z); course=dist-worldZ */
+    const worldZ=-ly+GROUND_Z;
+    const h=terrainHeight(lx,dist-worldZ);
+    pos[i3]=lx;pos[i3+1]=ly;pos[i3+2]=h;
+  }
+  groundGeo.attributes.position.needsUpdate=true;
+  /* normals реже — mesh плотный; первый кадр обязательно */
+  if((++_terrainNormFrame&1)===0||_terrainNormFrame===1)groundGeo.computeVertexNormals();
 }
+/* bankMat оставлен для фонарей/декора; снежных валов-коридоров больше нет */
+const bankMat=new THREE.MeshStandardMaterial({color:0xe6ecf8,roughness:1});
+updateTerrain(0);
 /* ═══════════ горные силуэты ═══════════ */
 const mountGrp=new THREE.Group();scene.add(mountGrp);
 const mountFarMat=new THREE.MeshStandardMaterial({color:0x0b1226,roughness:1,flatShading:true});
 const mountNearMat=new THREE.MeshStandardMaterial({color:0x101a34,roughness:1,flatShading:true});
 {
-  for(let i=0;i<8;i++){
-    const r=rand(45,95),h=rand(55,115);
+  for(let i=0;i<14;i++){
+    const r=rand(40,100),h=rand(50,130);
     const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,5),Math.random()<0.5?mountFarMat:mountNearMat);
-    m.position.set(rand(-280,280),h/2-6,-rand(290,430));
+    m.position.set(rand(-300,300),h/2-8,-rand(270,460));
+    m.rotation.y=rand(Math.PI);
+    mountGrp.add(m);
+  }
+  for(let i=0;i<6;i++){
+    const r=rand(22,48),h=rand(28,55);
+    const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,5),mountNearMat);
+    m.position.set(rand(-220,220),h/2-4,-rand(180,280));
     m.rotation.y=rand(Math.PI);
     mountGrp.add(m);
   }
 }
-/* ═══════════ еловый лес за трассой (пул) ═══════════ */
+/* ═══════════ еловый лес на открытом склоне (пул) ═══════════ */
 const forestMat1=new THREE.MeshStandardMaterial({color:0x0c2126,roughness:1});
 const forestMat2=new THREE.MeshStandardMaterial({color:0x122a30,roughness:1});
 const forestCone=new THREE.ConeGeometry(1,1,6);
 const forest=[];
-function resetForestTree(f,initial){
-  const side=Math.random()<0.5?-1:1;
-  const h=rand(5,10.5),r=rand(1.2,2.3);
-  f.m.position.set(side*(15+rand(19)),h/2,initial?rand(-300,24):f.m.position.z-330);
+function placeOnTerrain(obj,x,z,yOff=0,dist=0){
+  obj.position.set(x,terrainHeight(x,dist-z)+yOff,z);
+}
+/** X с плотностью: редко в центре, густо по бокам freeride. */
+function pickForestX(){
+  const u=Math.random();
+  const s=Math.random()<0.5?-1:1;
+  if(u<0.12)return rand(-9,9);           /* редкие на линии спуска */
+  if(u<0.40)return s*rand(8,20);         /* средняя полоса */
+  if(u<0.75)return s*rand(18,42);        /* основной freeride-край */
+  return s*rand(38,78);                  /* дальние предгорья */
+}
+function resetForestTree(f,initial,dist=0){
+  const h=rand(5,12),r=rand(1.15,2.5);
+  const x=pickForestX();
+  const z=initial?rand(-300,24):f.m.position.z-330;
   f.m.scale.set(r,h,r);
+  f.hHalf=h/2;
+  placeOnTerrain(f.m,x,z,h/2,dist);
   f.m.userData.sway=rand(6.28);
 }
-for(let i=0;i<76;i++){
+for(let i=0;i<110;i++){
   const m=new THREE.Mesh(forestCone,Math.random()<0.5?forestMat1:forestMat2);
-  const f={m};resetForestTree(f,true);scene.add(m);forest.push(f);
+  const f={m,hHalf:1};resetForestTree(f,true,0);scene.add(m);forest.push(f);
 }
 /* ═══════════ фонари вдоль трассы ═══════════ */
 function radialTex(inner,outer){
@@ -168,8 +276,9 @@ const poleMat=new THREE.MeshStandardMaterial({color:0x1d222b,roughness:0.9});
 const lampMat=new THREE.MeshStandardMaterial({color:0xffb050,emissive:0xff8a2a,emissiveIntensity:1.6,roughness:0.5});
 const lampGeo=new THREE.BoxGeometry(0.34,0.4,0.34);
 const poleGeo=new THREE.CylinderGeometry(0.07,0.09,2.7,6);
+/* редкие одиночные маркеры (не парный коридор) */
 const lanterns=[];
-const LANT_N=12,LANT_SP=44;
+const LANT_N=8,LANT_SP=62;
 for(let i=0;i<LANT_N;i++){
   const g=new THREE.Group();
   const p=new THREE.Mesh(poleGeo,poleMat);p.position.y=1.35;g.add(p);
@@ -177,16 +286,19 @@ for(let i=0;i<LANT_N;i++){
   const cap=new THREE.Mesh(new THREE.ConeGeometry(0.3,0.2,4),bankMat);cap.position.y=3.05;cap.rotation.y=Math.PI/4;g.add(cap);
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffa64d,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0.5}));
   sp.position.y=2.75;sp.scale.set(2.4,2.4,1);g.add(sp);
-  g.position.set((i%2?1:-1)*11.2,0,10-i*LANT_SP);
+  const side=i%2?1:-1;
+  const lx=side*rand(6,28)+(Math.random()-0.5)*4;
+  const lz=10-i*LANT_SP;
+  placeOnTerrain(g,lx,lz,0,0);
   scene.add(g);
-  lanterns.push({g,sp,phase:rand(6.28)});
+  lanterns.push({g,sp,phase:rand(6.28),x:lx});
 }
 /* ═══════════ снегопад ═══════════ */
 const SNOW_N=1600;
 const snowPos=new Float32Array(SNOW_N*3);
 const snowSeed=new Float32Array(SNOW_N);
 for(let i=0;i<SNOW_N;i++){
-  snowPos[i*3]=rand(-36,36);snowPos[i*3+1]=rand(0,26);snowPos[i*3+2]=rand(-90,20);
+  snowPos[i*3]=rand(-70,70);snowPos[i*3+1]=rand(0,28);snowPos[i*3+2]=rand(-90,20);
   snowSeed[i]=rand(6.28);
 }
 const snowGeo=new THREE.BufferGeometry();
@@ -237,6 +349,8 @@ export {
   renderer, scene, camera,
   hemiLight, moonLight, warmPt,
   skyMat, ground, groundTex, TILE_LEN, bankMat,
+  terrainHeight, terrainSlope, updateTerrain, placeOnTerrain,
+  GROUND_W, GROUND_L,
   mountGrp, mountFarMat, mountNearMat,
   forest, forestMat1, forestMat2, resetForestTree,
   lanterns, LANT_N, LANT_SP, lampMat,

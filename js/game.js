@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { clamp, lerp, rand, $, fmt } from './utils.js';
 import {
-  G, best, saveBest, stageName, COURSE, KILL_Z, SPAWN_Z,
+  G, best, saveBest, stageName, FREERIDE_SOFT, FREERIDE_HARD, KILL_Z, SPAWN_Z,
   obstacles, pendingRows, track
 } from './state.js';
 import {
   renderer, scene, camera, skyMat, groundTex, TILE_LEN,
   forest, resetForestTree, lanterns, LANT_N, LANT_SP,
   snow, snowMat, snowGeo, snowPos, snowSeed, SNOW_N,
-  spPos, spVel, spLife, SP_N, spGeo, emitSpray, warmPt, mountGrp
+  spPos, spVel, spLife, SP_N, spGeo, emitSpray, warmPt, mountGrp,
+  terrainHeight, terrainSlope, updateTerrain
 } from './scene.js';
 import { riderG, boardG, riderPose } from './rider.js';
 import { processSpawns } from './obstacles.js';
@@ -18,6 +19,12 @@ import { vignetteEl, popupsEl, popup, banner, flashScreen, addScore, comboUp, co
 import { K, setupInput } from './input.js';
 
 /* ═══════════ столкновения / события трассы ═══════════ */
+const gyAt=(x=G.x,z=0)=>terrainHeight(x,G.dist-z);
+function syncGroundY(){
+  const g=gyAt();
+  G.y=g;G.py=0;
+  return g;
+}
 function nearMiss(){
   const pts=Math.round(30*G.mult);
   addScore(pts);comboUp();
@@ -31,7 +38,7 @@ function crash(reason){
   G.state='crash';G.crashT=0;G.crashReason=REASONS[reason]||'Падение';
   comboReset();SFX.crash();flashScreen();
   G.shake=0.7;
-  emitSpray(40,G.x,0.1,0,{sx:1.2,vx:0,vy:2,vyr:4,vz:3,vsx:5});
+  emitSpray(40,G.x,G.y+0.1,0,{sx:1.2,vx:0,vy:2,vyr:4,vz:3,vsx:5});
 }
 function rampLaunch(){
   G.grounded=false;
@@ -39,21 +46,22 @@ function rampLaunch(){
   G.takeoffT=G.time;
   popup('ТРАМПЛИН!','info');SFX.ramp();
   G.camDip=-0.35;
-  emitSpray(12,G.x,0.1,0.8,{vx:0,vy:1.5,vz:5});
+  emitSpray(12,G.x,G.y+0.1,0.8,{vx:0,vy:1.5,vz:5});
 }
 function doJump(){
   if(!G.grounded)return;
   G.grounded=false;G.vy=7.6;G.takeoffT=G.time;G.jumpBuf=0;
   SFX.jump();
-  emitSpray(8,G.x,0.05,0.4,{vx:0,vy:1.2,vz:5});
+  emitSpray(8,G.x,G.y+0.05,0.4,{vx:0,vy:1.2,vz:5});
 }
 function onLand(){
   const air=G.time-G.takeoffT;
-  G.grounded=true;G.py=0;G.vy=0;
+  G.grounded=true;G.vy=0;
+  syncGroundY();
   G.landAbsorb=Math.min(0.5,Math.max(0.18,air*0.12));
   G.camDip=0.5;G.shake=Math.max(G.shake,0.1);
   SFX.land();
-  emitSpray(24,G.x,0.05,0,{sx:0.9,vx:0,vy:1.5,vyr:3,vz:4,vsx:3});
+  emitSpray(24,G.x,G.y+0.05,0,{sx:0.9,vx:0,vy:1.5,vyr:3,vz:4,vsx:3});
   if(air>0.35){
     const total=Math.abs(G.spinAngle);
     const norm=((G.spinAngle%360)+360)%360;
@@ -102,8 +110,18 @@ function checkStage(){
 
 /* ═══════════ камера ═══════════ */
 const camTarget=new THREE.Vector3();
+const lookTarget=new THREE.Vector3();
 function cameraUpdate(dt){
-  camTarget.set(G.x*0.55,3.05+G.py*0.35-G.camDip,8.3);
+  const gy=G.grounded?G.y:terrainHeight(G.x,G.dist);
+  /* отстаём от рельефа, чтобы гребни читались, а freeride не дёргал камеру */
+  G.camGroundY=lerp(G.camGroundY,gy,Math.min(1,1.8*dt));
+  const slope=terrainSlope(G.x,G.dist);
+  const pitchLift=clamp(-slope.dhds*0.85,-0.9,1.1);
+  camTarget.set(
+    G.x*0.62,
+    G.camGroundY+3.55+G.py*0.5-G.camDip+pitchLift*0.28,
+    9.4
+  );
   const k=1-Math.pow(0.0008,dt);
   camera.position.lerp(camTarget,k);
   if(G.shake>0){
@@ -112,27 +130,40 @@ function cameraUpdate(dt){
     G.shake=Math.max(0,G.shake-dt*2.2);
   }
   G.camDip+=(0-G.camDip)*Math.min(1,6*dt);
-  camera.lookAt(G.x*0.8,1.15+G.py*0.5,-9);
-  const fovT=62+(G.speed/34)*20+(K.up&&G.grounded?4:0);
+  /* смотрим дальше по склону — ширина горы как на референсе */
+  const gyLook=terrainHeight(G.x*0.75,G.dist+26);
+  lookTarget.set(G.x*0.75,gyLook+1.25+G.py*0.35,-18);
+  camera.lookAt(lookTarget);
+  const fovT=60+(G.speed/34)*16+(K.up&&G.grounded?3:0)+clamp(-slope.dhds*4.5,0,4.5);
   camera.fov=lerp(camera.fov,fovT,Math.min(1,5*dt));
   camera.updateProjectionMatrix();
 }
 /* ═══════════ обновление мира ═══════════ */
 function moveWorld(scroll,dt){
   groundTex.offset.y+=scroll/TILE_LEN;
+  updateTerrain(G.dist);
   for(const f of forest){
     f.m.position.z+=scroll;
+    /* courseZ = dist − z постоянен при скролле → высота та же; при ресете пересчёт */
     f.m.rotation.z=Math.sin(G.time*0.8+f.m.userData.sway)*0.012;
-    if(f.m.position.z>26)resetForestTree(f,false);
+    if(f.m.position.z>26)resetForestTree(f,false,G.dist);
   }
   for(const l of lanterns){
     l.g.position.z+=scroll;
-    if(l.g.position.z>14)l.g.position.z-=LANT_N*LANT_SP;
+    if(l.g.position.z>14){
+      l.g.position.z-=LANT_N*LANT_SP;
+      /* новый одиночный маркер где-то на склоне */
+      l.x=(Math.random()<0.5?-1:1)*rand(5,32);
+    }
+    const lx=l.x??l.g.position.x;
+    l.g.position.x=lx;
+    l.g.position.y=terrainHeight(lx,G.dist-l.g.position.z);
     const glowB=THEME_NIGHT.glowBase+(THEME_DAY.glowBase-THEME_NIGHT.glowBase)*dayFactor;
     l.sp.material.opacity=glowB*(0.84+0.32*Math.sin(G.time*7+l.phase));
   }
-  mountGrp.position.x=-G.x*0.12;
-  warmPt.position.set(G.x*0.5,2.4,-5);
+  mountGrp.position.x=-G.x*0.18;
+  const gy=terrainHeight(G.x*0.5,G.dist+5);
+  warmPt.position.set(G.x*0.5,gy+2.4,-5);
   const warmBase=THEME_NIGHT.warmI+(THEME_DAY.warmI-THEME_NIGHT.warmI)*dayFactor;
   warmPt.intensity=warmBase+Math.sin(G.time*11)*1.2*(1-dayFactor);
 }
@@ -147,11 +178,11 @@ function snowUpdate(dt,scroll){
     snowPos[i3+1]-=fall*(0.7+0.6*Math.abs(Math.sin(snowSeed[i])))*dt;
     snowPos[i3]+=(windX*2+Math.sin(G.time*0.7+snowSeed[i])*0.4)*dt;
     snowPos[i3+2]+=scroll;
-    if(snowPos[i3+1]<0){snowPos[i3+1]+=26;snowPos[i3]=rand(-36,36);}
+    if(snowPos[i3+1]<0){snowPos[i3+1]+=28;snowPos[i3]=rand(-70,70);}
     if(snowPos[i3+2]>20)snowPos[i3+2]-=110;
     else if(snowPos[i3+2]<-90)snowPos[i3+2]+=110;
-    if(snowPos[i3]>36)snowPos[i3]-=72;
-    else if(snowPos[i3]<-36)snowPos[i3]+=72;
+    if(snowPos[i3]>70)snowPos[i3]-=140;
+    else if(snowPos[i3]<-70)snowPos[i3]+=140;
   }
   snowGeo.attributes.position.needsUpdate=true;
 }
@@ -165,7 +196,8 @@ function sprayUpdate(dt,scroll){
     spPos[i3]+=spVel[i3]*dt;
     spPos[i3+1]+=spVel[i3+1]*dt;
     spPos[i3+2]+=spVel[i3+2]*dt+scroll;
-    if(spPos[i3+1]<0.02){spPos[i3+1]=0.02;spVel[i3+1]*=-0.3;}
+    const floorY=terrainHeight(spPos[i3],G.dist-spPos[i3+2])+0.02;
+    if(spPos[i3+1]<floorY){spPos[i3+1]=floorY;spVel[i3+1]*=-0.3;}
   }
   spGeo.attributes.position.needsUpdate=true;
   spGeo.attributes.aLife.needsUpdate=true;
@@ -175,7 +207,7 @@ function sprayUpdate(dt,scroll){
 /* ═══════════ управление состоянием ═══════════ */
 function reset(){
   G.score=0;G.dist=0;G.stage=1;G.cruise=13;G.combo=0;G.mult=1;
-  G.speed=10;G.x=0;G.vx=0;G.py=0;G.vy=0;G.grounded=true;
+  G.speed=10;G.x=0;G.vx=0;G.vy=0;G.grounded=true;
   G.spinAngle=0;G.spinVel=0;G.visualSpin=0;G.grabTime=0;G.grabbing=false;
   G.shake=0;G.camDip=0;G.maxSpeed=0;G.jumpBuf=0;
   G.fogT=0.015;G.snowOpT=0.6;G.snowSizeT=0.11;G.windAmp=0;
@@ -185,8 +217,12 @@ function reset(){
   track.spawnCursor=0;
   scene.fog.density=G.fogT;
   snowMat.opacity=G.snowOpT;snowMat.size=G.snowSizeT;
-  riderG.rotation.set(0,0,0);riderG.position.set(0,0,0);
-  camera.position.set(0,3.2,8.4);camera.fov=62;camera.updateProjectionMatrix();
+  riderG.rotation.set(0,0,0);
+  const gy0=syncGroundY();
+  G.camGroundY=gy0;
+  riderG.position.set(0,gy0,0);
+  camera.position.set(0,gy0+3.55,9.4);camera.fov=60;camera.updateProjectionMatrix();
+  updateTerrain(0);
   popupsEl.innerHTML='';
 }
 function startGame(){
@@ -229,9 +265,10 @@ function update(dt){
   skyMat.uniforms.uTime.value=G.time;
   if(G.state==='menu'){
     G.speed=lerp(G.speed,8,dt*2);
-    const tx=Math.sin(G.time*0.4)*3.5;
+    const tx=Math.sin(G.time*0.4)*6;
     G.x=lerp(G.x,tx,Math.min(1,dt*1.5));
     G.vx=(tx-G.x)*2;
+    syncGroundY();
   }else if(G.state==='crash'){
     G.speed=Math.max(0,G.speed-30*dt);
     G.crashT+=dt;
@@ -239,23 +276,28 @@ function update(dt){
   }else if(G.state==='over'){
     G.speed=0;
   }else if(G.state==='running'){
-    /* скорость */
+    /* скорость + склон: вниз разгон, вверх тормоз; поперёк — лёгкий снос */
     const brake=K.down,tuck=K.up;
+    const slopeNow=terrainSlope(G.x,G.dist);
+    const hillBoost=G.grounded?clamp(-slopeNow.dhds*14,-9,14):0;
     if(brake)G.speed=Math.max(6,G.speed-26*dt);
     else{
       const target=tuck?G.cruise+9:G.cruise;
       const acc=tuck?12:(target>G.speed?7:14);
       G.speed+=clamp(target-G.speed,-acc*dt,acc*dt);
+      G.speed=clamp(G.speed+hillBoost*dt,5,36);
     }
     G.maxSpeed=Math.max(G.maxSpeed,G.speed);
-    /* руление */
+    /* руление — freeride, без стен */
     const dir=(K.right?1:0)-(K.left?1:0);
     if(G.grounded){
-      G.vx+=dir*26*(tuck?0.8:1)*dt;
-      G.vx-=G.vx*3.0*dt;
+      G.vx+=dir*28*(tuck?0.8:1)*dt;
+      /* скатывание с поперечного ребра */
+      G.vx+=(-slopeNow.dhdx)*G.speed*0.42*dt;
+      G.vx-=G.vx*2.6*dt;
       if(G.jumpBuf>0){doJump();}
     }else{
-      G.vx+=dir*6*dt;
+      G.vx+=dir*6.5*dt;
       const svT=dir*5.2;
       G.spinVel=dir!==0?lerp(G.spinVel,svT,Math.min(1,8*dt)):G.spinVel*Math.max(0,1-5*dt);
       G.spinAngle+=G.spinVel*57.2958*dt;
@@ -263,24 +305,33 @@ function update(dt){
       if(G.grabbing)G.grabTime+=dt;
     }
     G.jumpBuf=Math.max(0,G.jumpBuf-dt);
-    /* вертикаль */
-    if(!G.grounded){
-      G.py+=G.vy*dt;G.vy-=23*dt;
-      if(G.py<=0){G.py=0;onLand();}
+    /* world-Y: баллистика, приземление на mesh */
+    if(G.grounded){
+      syncGroundY();
+    }else{
+      G.y+=G.vy*dt;
+      G.vy-=24*dt;
+      const ground=gyAt();
+      G.py=G.y-ground;
+      if(G.y<=ground&&G.vy<=0){G.y=ground;onLand();}
     }
-    /* позиция и берега */
+    /* позиция X + мягкий anti-void край (не стена) */
     G.x+=G.vx*dt;
     if(G.windAmp>0)G.vx+=Math.sin(G.time*0.5)*G.windAmp*0.4*dt;
-    if(Math.abs(G.x)>COURSE){
-      G.x=Math.sign(G.x)*COURSE;G.vx*=-0.25;G.speed*=0.988;
-      G.shake=Math.max(G.shake,0.06);
-      emitSpray(4,Math.sign(G.x)*10,0.2,0,{vx:-Math.sign(G.x)*2,vy:1.5,vz:4});
+    const ax=Math.abs(G.x);
+    if(ax>FREERIDE_SOFT){
+      const over=ax-FREERIDE_SOFT;
+      G.vx-=Math.sign(G.x)*over*2.2*dt;
+      if(ax>FREERIDE_HARD){
+        G.x=Math.sign(G.x)*FREERIDE_HARD;
+        G.vx*=0.55;
+      }
     }
     /* спрей от кантов */
     if(G.grounded&&Math.abs(G.vx)>3.5)
-      emitSpray(3,G.x-Math.sign(G.vx)*0.3,0.04,0.3,{vx:Math.sign(G.vx)*1.2,vy:1.4,vz:4,vsx:1});
+      emitSpray(3,G.x-Math.sign(G.vx)*0.3,G.y+0.04,0.3,{vx:Math.sign(G.vx)*1.2,vy:1.4,vz:4,vsx:1});
     if(G.grounded&&brake&&G.speed>8)
-      emitSpray(5,G.x,0.05,0.5,{vx:0,vy:2,vyr:2.5,vz:6,vsx:2.5});
+      emitSpray(5,G.x,G.y+0.05,0.5,{vx:0,vy:2,vyr:2.5,vz:6,vsx:2.5});
     /* прогресс */
     G.score+=G.speed*dt*2;
     processSpawns();
@@ -293,6 +344,7 @@ function update(dt){
   for(let i=obstacles.length-1;i>=0;i--){
     const o=obstacles[i];
     o.group.position.z+=scroll;
+    o.group.position.y=terrainHeight(o.x,G.dist-o.group.position.z);
     const z=o.group.position.z;
     if(z>KILL_Z){scene.remove(o.group);obstacles.splice(i,1);continue;}
     if(o.type==='gate'){

@@ -1,13 +1,17 @@
 /* game state & constants */
 export const STAGES=['ТИХИЙ СКЛОН','ВЕТЕР КРЕПЧАЕТ','МЕТЕЛЬ','БУРАН','БЕЛАЯ ТЬМА','ШТОРМОВОЙ ПЕРЕВАЛ','ЛЕДЯНОЙ ГРЕБЕНЬ','ПОСЛЕДНИЙ СПУСК'];
 export const stageName=s=>s<=STAGES.length?STAGES[s-1]:'ПУРГА ×'+s;
-export const SPAWN_Z=-250,KILL_Z=16,COURSE=10.3;
+export const SPAWN_Z=-250,KILL_Z=16;
+/** legacy half-width for obstacle path helpers (не стена) */
+export const COURSE=18;
+/** freeride: soft spring / hard clamp по X */
+export const FREERIDE_SOFT=42,FREERIDE_HARD=55;
 
 export const G={
   state:'menu',time:0,dist:0,score:0,speed:8,cruise:13,
-  x:0,vx:0,py:0,vy:0,grounded:true,
+  x:0,vx:0,y:16,py:0,vy:0,grounded:true,
   stage:1,combo:0,mult:1,maxSpeed:0,
-  shake:0,camDip:0,crashT:0,crashReason:'',
+  shake:0,camDip:0,camGroundY:0,crashT:0,crashReason:'',
   spinAngle:0,spinVel:0,visualSpin:0,
   grabbing:false,grabTime:0,takeoffT:0,jumpBuf:0,
   crouch:0,roll:0,boardYaw:0,fogT:0.015,windAmp:0,

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, rand } from './utils.js';
 import { G, SPAWN_Z, obstacles, pendingRows, track } from './state.js';
-import { scene } from './scene.js';
+import { scene, terrainHeight } from './scene.js';
 import {
   buildTree, treeDarkMat, treeMidMat, treeSnowMat, trunkMat
 } from './trees.js';
@@ -86,7 +86,7 @@ function avoidX(minD,center=track.pathX){
   return center>0?center-minD-0.5:center+minD+0.5;
 }
 function addOb(group,type,x,props){
-  group.position.set(x,0,SPAWN_Z);
+  group.position.set(x,terrainHeight(x,G.dist-SPAWN_Z),SPAWN_Z);
   scene.add(group);
   obstacles.push({type,group,x,passed:false,used:false,flash:0,phase:rand(6.28),...props});
 }

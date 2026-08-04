@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { clamp, lerp } from './utils.js';
 import { G } from './state.js';
-import { scene } from './scene.js';
+import { scene, terrainHeight, terrainSlope } from './scene.js';
 import { K } from './input.js';
 
 /* ═══════════ сноубордист ═══════════ */
@@ -311,25 +311,33 @@ function riderPose(dt){
     );
     s.rotation.set(-0.5-wind*0.35-G.speed*0.012,Math.sin(G.time*6+i)*0.2+i*0.04,ponySway*0.4);
   }
+  const slope=terrainSlope(G.x,G.dist);
+  const groundY=slope.h;
+  /* world-Y: G.y — доска; py — высота над mesh (для тени/поз) */
+  if(G.state!=='crash'&&G.grounded){G.y=groundY;G.py=0;}
+  else if(G.state!=='crash')G.py=G.y-groundY;
   if(G.state==='crash'){
     riderG.rotation.x+=dt*9;
     riderG.rotation.z=Math.sin(G.crashT*12)*0.4;
     boardG.rotation.z+=dt*6;
-    riderG.position.set(G.x,Math.max(0,Math.sin(Math.min(G.crashT*9,Math.PI))*0.4*(1-G.crashT*0.7)),0);
+    const bounce=Math.max(0,Math.sin(Math.min(G.crashT*9,Math.PI))*0.4*(1-G.crashT*0.7));
+    riderG.position.set(G.x,groundY+bounce,0);
   }else{
-    riderG.rotation.x=0;
     boardG.rotation.z=0;
-    const rollT=clamp(-G.vx*0.05,-0.5,0.5);
+    const rollT=clamp(-G.vx*0.05-slope.dhdx*0.5,-0.55,0.55);
     G.roll=lerp(G.roll,rollT,Math.min(1,9*dt));
-    const yawT=-G.vx*0.045;
+    const yawT=-G.vx*0.04;
     G.boardYaw=lerp(G.boardYaw,yawT,Math.min(1,10*dt));
     G.visualSpin*=Math.max(0,1-6*dt);
+    /* pitch по склону: гребень / чаша читаются телом */
+    const pitchT=air?clamp(-G.vy*0.02,-0.35,0.25):clamp(-slope.dhds*1.05,-0.5,0.5);
+    riderG.rotation.x=lerp(riderG.rotation.x,pitchT,Math.min(1,10*dt));
     riderG.rotation.y=G.boardYaw+(air?G.spinAngle*Math.PI/180:G.visualSpin*Math.PI/180);
     riderG.rotation.z=G.roll;
-    riderG.position.set(G.x,G.py,0);
+    riderG.position.set(G.x,G.y,0);
   }
-  blob.position.set(G.x,0.02,0);
-  const bsc=clamp(1-G.py*0.28,0.3,1);
+  blob.position.set(G.x,groundY+0.02,0);
+  const bsc=clamp(1-Math.max(0,G.py)*0.28,0.3,1);
   blob.scale.set(bsc,bsc,1);
   blob.material.opacity=0.34*bsc;
   G.landAbsorb=Math.max(0,G.landAbsorb-dt*1.6);
