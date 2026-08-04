@@ -146,22 +146,12 @@ const rowSlalom=()=>{pathWalk();
       }});
     }
   }};};
+/* Clear track: no obstacles. Keep builders above for easy restore. */
 function randomRow(){
-  const t=[[1.1,rowGate],[3,rowTrees],[1.8,rowBoulder],[1.9,rowFence],[1.7,rowRamp]];
-  if(G.stage>=2)t.push([1.5,rowRocks]);
-  if(G.stage>=3)t.push([1.3,rowSlalom]);
-  let sum=0;for(const[w]of t)sum+=w;
-  let r=Math.random()*sum;
-  for(const[w,fn]of t){r-=w;if(r<=0)return fn();}
-  return rowTrees();
+  return{gap:9999,build(){}};
 }
 function processSpawns(){
-  let guard=0;
-  while(G.dist>=track.spawnCursor&&guard++<3){
-    const row=pendingRows.shift()||randomRow();
-    row.build();
-    track.spawnCursor+=row.gap;
-  }
+  /* empty track — nothing spawns on the slope */
 }
 
 export {

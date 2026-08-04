@@ -11,7 +11,7 @@ import {
   spPos, spVel, spLife, SP_N, spGeo, emitSpray, warmPt, mountGrp
 } from './scene.js';
 import { riderG, boardG, riderPose } from './rider.js';
-import { processSpawns, randomRow } from './obstacles.js';
+import { processSpawns } from './obstacles.js';
 import { THEME_NIGHT, THEME_DAY, dayFactor, themeTick, applyTheme, toggleTheme } from './theme.js';
 import { A, initAudio, playTone, SFX, toggleMute } from './audio.js';
 import { vignetteEl, popupsEl, popup, banner, flashScreen, addScore, comboUp, comboReset } from './ui.js';
@@ -183,9 +183,6 @@ function reset(){
   for(const o of obstacles)scene.remove(o.group);
   obstacles.length=0;
   track.spawnCursor=0;
-  while(track.spawnCursor<210){
-    const row=randomRow();row.build();track.spawnCursor+=row.gap;
-  }
   scene.fog.density=G.fogT;
   snowMat.opacity=G.snowOpT;snowMat.size=G.snowSizeT;
   riderG.rotation.set(0,0,0);riderG.position.set(0,0,0);
