@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<!--
+  ПУРГА — бесконечный спуск на сноуборде сквозь метель (день / ночь).
+  Модульная версия: HTML + CSS + JS. Нужен локальный сервер и интернет (three.js + шрифты).
+
+  ЗАПУСК:
+    cd в папку проекта
+    python3 -m http.server 8080
+    открыть http://localhost:8080/
+
+  УПРАВЛЕНИЕ: ←→/AD поворот · SPACE прыжок · W разгон · S тормоз/грэб · P пауза · M звук · R заново
+-->
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>ПУРГА — спуск сквозь метель</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/russo-one@latest/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/manrope@latest/400.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/manrope@latest/600.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/manrope@latest/800.css">
+<link rel="stylesheet" href="css/purga.css">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+<div id="flash"></div>
+<div id="hud" class="hidden">
+  <div id="scoreBox" class="panel">
+    <div class="lbl">ОЧКИ</div>
+    <div id="scoreVal">0</div>
+    <div id="bestVal">РЕКОРД 0</div>
+  </div>
+  <div id="distBox">
+    <div id="distVal">0 м</div>
+    <div id="stageName">ЭТАП 1 · ТИХИЙ СКЛОН</div>
+  </div>
+  <div id="comboBox" class="hidden"><span id="comboMult">×1</span><span id="comboCnt"></span></div>
+  <div id="speedBox" class="panel">
+    <div id="speedVal">0</div>
+    <div class="lbl">КМ/Ч</div>
+    <div id="speedBar"><i id="speedBarFill"></i></div>
+  </div>
+  <button id="themeBtn">ТЕМА: НОЧЬ</button>
+  <button id="muteBtn">ЗВУК: ВКЛ</button>
+  <div id="hint">← → поворот&nbsp;&nbsp;·&nbsp;&nbsp;SPACE прыжок&nbsp;&nbsp;·&nbsp;&nbsp;W разгон&nbsp;&nbsp;·&nbsp;&nbsp;S тормоз / грэб</div>
+</div>
+<div id="banner"></div>
+<div id="popups"></div>
+<div id="menu" class="overlay">
+  <div class="panelBig">
+    <div id="title">ПУРГ<b>А</b></div>
+    <div class="tagline">БЕСКОНЕЧНЫЙ СПУСК СКВОЗЬ МЕТЕЛЬ · ДЕНЬ И НОЧЬ</div>
+    <div class="ctrls">
+      <span><span class="key">←</span><span class="key">→</span> / <span class="key">A</span><span class="key">D</span></span><span>поворот · вращение в воздухе</span>
+      <span><span class="key">SPACE</span></span><span>прыжок (на трамплине — выше)</span>
+      <span><span class="key">W</span> / <span class="key">↑</span></span><span>группировка — разгон</span>
+      <span><span class="key">S</span> / <span class="key">↓</span></span><span>тормоз · в воздухе — грэб</span>
+      <span><span class="key">P</span> <span class="key">M</span> <span class="key">R</span></span><span>пауза · звук · заново</span>
+    </div>
+    <button id="startBtn" class="btn">НА СКЛОН — ENTER</button>
+    <span class="subBtn">держись между воротами · проезжай вплотную к препятствиям ради бонусов</span>
+    <div id="menuBest"></div>
+  </div>
+</div>
+<div id="pauseOv" class="overlay hidden">
+  <div class="panelBig">
+    <div class="ovTitle">ПАУЗА</div>
+    <div id="pauseHint">склон ждёт</div>
+    <button id="resumeBtn" class="btn">ПРОДОЛЖИТЬ — P</button>
+  </div>
+</div>
+<div id="over" class="overlay hidden">
+  <div class="panelBig">
+    <div class="ovTitle bad">ПАДЕНИЕ</div>
+    <div id="crashReason"></div>
+    <div class="stats">
+      <div><div class="lbl">ОЧКИ</div><div class="v" id="overScore">0</div></div>
+      <div><div class="lbl">ДИСТАНЦИЯ</div><div class="v" id="overDist">0 м</div></div>
+      <div><div class="lbl">МАКС. СКОРОСТЬ</div><div class="v" id="overSpeed">0 км/ч</div></div>
+      <div><div class="lbl">РЕКОРД</div><div class="v" id="overBest">0</div></div>
+    </div>
+    <div id="recordBadge" class="hidden">НОВЫЙ РЕКОРД</div>
+    <button id="restartBtn" class="btn">ЕЩЁ РАЗ — R</button>
+  </div>
+</div>
+<div id="touch">
+  <button id="tbL">◀</button><button id="tbR">▶</button>
+  <button id="tbD">▼</button><button id="tbJ">ПРЫЖОК</button>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

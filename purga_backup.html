@@ -1,0 +1,1271 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.7">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">&lt;!DOCTYPE html&gt;</p>
+<p class="p1">&lt;!--</p>
+<p class="p1"><span class="Apple-converted-space">  </span>═══════════════════════════════════════════════════════════════</p>
+<p class="p1"><span class="Apple-converted-space">   </span>ПУРГА — бесконечный ночной спуск на сноуборде сквозь метель.</p>
+<p class="p1"><span class="Apple-converted-space">   </span>Один файл, без сервера. Нужен доступ в интернет (three.js + шрифты с CDN).</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">   </span>ЗАПУСК:</p>
+<p class="p1"><span class="Apple-converted-space">     </span>1) сохраните файл как purga.html</p>
+<p class="p1"><span class="Apple-converted-space">     </span>2) откройте в современном браузере (Chrome / Edge / Firefox / Safari)</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">   </span>УПРАВЛЕНИЕ (клавиатура):</p>
+<p class="p1"><span class="Apple-converted-space">     </span>← →<span class="Apple-converted-space">  </span>или<span class="Apple-converted-space">  </span>A D ......... поворот / вращение в воздухе</p>
+<p class="p1"><span class="Apple-converted-space">     </span>SPACE .................. прыжок</p>
+<p class="p1"><span class="Apple-converted-space">     </span>W / ↑ .................. группировка (разгон)</p>
+<p class="p1"><span class="Apple-converted-space">     </span>S / ↓ .................. тормоз на склоне, грэб в воздухе</p>
+<p class="p1"><span class="Apple-converted-space">     </span>P или ESC .............. пауза<span class="Apple-converted-space">        </span>M — звук</p>
+<p class="p1"><span class="Apple-converted-space">     </span>R или ENTER ............ старт / заново</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">   </span>На сенсорных экранах появляются экранные кнопки.</p>
+<p class="p1"><span class="Apple-converted-space">  </span>═══════════════════════════════════════════════════════════════</p>
+<p class="p1">--&gt;</p>
+<p class="p1">&lt;html lang="ru"&gt;</p>
+<p class="p1">&lt;head&gt;</p>
+<p class="p1">&lt;meta charset="UTF-8"&gt;</p>
+<p class="p1">&lt;meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"&gt;</p>
+<p class="p1">&lt;title&gt;ПУРГА — ночной спуск&lt;/title&gt;</p>
+<p class="p1">&lt;link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/russo-one@latest/400.css"&gt;</p>
+<p class="p1">&lt;link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/manrope@latest/400.css"&gt;</p>
+<p class="p1">&lt;link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/manrope@latest/600.css"&gt;</p>
+<p class="p1">&lt;link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/manrope@latest/800.css"&gt;</p>
+<p class="p1">&lt;style&gt;</p>
+<p class="p1">:root{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>--bg:#070b1a; --panel:rgba(12,19,40,.84); --steel:#8fa3c8; --line:rgba(127,147,189,.35);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>--amber:#ffab4a; --amber2:#ff7a3c; --snow:#eef3ff; --bad:#ff5d4d; --ice:#9fd4e8;</p>
+<p class="p1">}</p>
+<p class="p1">*{margin:0;padding:0;box-sizing:border-box}</p>
+<p class="p1">html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>font-family:'Manrope',system-ui,sans-serif;color:var(--snow);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>-webkit-user-select:none;user-select:none;touch-action:none}</p>
+<p class="p1">#app,#app canvas{position:fixed;inset:0;display:block}</p>
+<p class="p1">.hidden{opacity:0 !important;pointer-events:none !important}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ── экранные слои ─────────────────────────────── */</p>
+<p class="p1">#vignette{position:fixed;inset:0;pointer-events:none;z-index:5;opacity:.35;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(3,5,14,.92) 100%)}</p>
+<p class="p1">#flash{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:radial-gradient(ellipse at 50% 60%, rgba(255,86,60,.5), rgba(120,20,20,.25) 60%, transparent)}</p>
+<p class="p1">#flash.go{animation:flashA .55s ease-out}</p>
+<p class="p1">@keyframes flashA{0%{opacity:1}100%{opacity:0}}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ── HUD ───────────────────────────────────────── */</p>
+<p class="p1">#hud{position:fixed;inset:0;pointer-events:none;z-index:10;font-variant-numeric:tabular-nums}</p>
+<p class="p1">.panel{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%);padding:9px 22px 9px 14px}</p>
+<p class="p1">#scoreBox{position:absolute;top:16px;left:16px}</p>
+<p class="p1">.lbl{font-size:10px;letter-spacing:3px;color:var(--steel);font-weight:600}</p>
+<p class="p1">#scoreVal{font-family:'Russo One';font-size:30px;line-height:1.05;color:var(--snow)}</p>
+<p class="p1">#bestVal{font-size:11px;color:var(--steel);font-weight:600;letter-spacing:1px}</p>
+<p class="p1">#distBox{position:absolute;top:16px;left:50%;transform:translateX(-50%);text-align:center;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:var(--panel);border:1px solid var(--line);padding:7px 26px;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 100%,0 100%)}</p>
+<p class="p1">#distVal{font-family:'Russo One';font-size:22px}</p>
+<p class="p1">#stageName{font-size:10px;letter-spacing:3px;color:var(--amber);font-weight:800}</p>
+<p class="p1">#comboBox{position:absolute;top:16px;right:70px;background:var(--amber);color:#1c1002;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>padding:8px 20px;clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>font-family:'Russo One';font-size:17px;transition:transform .15s;transform-origin:right top}</p>
+<p class="p1">#comboBox.pop{transform:scale(1.18)}</p>
+<p class="p1">#comboBox span{display:block;text-align:center}</p>
+<p class="p1">#comboCnt{font-size:10px;letter-spacing:2px;font-family:'Manrope';font-weight:800}</p>
+<p class="p1">#speedBox{position:absolute;left:16px;bottom:16px;min-width:150px}</p>
+<p class="p1">#speedVal{font-family:'Russo One';font-size:44px;line-height:1;color:var(--snow);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>text-shadow:0 0 24px rgba(255,171,74,.35)}</p>
+<p class="p1">#speedBar{width:100%;height:5px;background:rgba(127,147,189,.25);margin-top:7px;overflow:hidden}</p>
+<p class="p1">#speedBarFill{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--amber),var(--amber2))}</p>
+<p class="p1">#muteBtn{position:absolute;top:14px;right:14px;pointer-events:auto;cursor:pointer;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:var(--panel);border:1px solid var(--line);color:var(--steel);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>font-family:'Manrope';font-weight:800;font-size:11px;letter-spacing:2px;padding:9px 12px}</p>
+<p class="p1">#muteBtn:hover{color:var(--amber);border-color:var(--amber)}</p>
+<p class="p1">#hint{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>font-size:12px;color:var(--steel);letter-spacing:1px;background:var(--panel);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>border:1px solid var(--line);padding:8px 18px;white-space:nowrap;transition:opacity 1.2s}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ── баннер этапа / всплывающие очки ───────────── */</p>
+<p class="p1">#banner{position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:12;opacity:0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>font-family:'Russo One';font-size:26px;letter-spacing:2px;color:var(--snow);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--amber);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>padding:12px 34px;pointer-events:none;white-space:nowrap}</p>
+<p class="p1">#banner.show{animation:bannerA 2.6s ease forwards}</p>
+<p class="p1">@keyframes bannerA{0%{opacity:0;transform:translate(-50%,-26px)}12%{opacity:1;transform:translate(-50%,0)}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>78%{opacity:1}100%{opacity:0;transform:translate(-50%,10px)}}</p>
+<p class="p1">#popups{position:fixed;inset:0;pointer-events:none;z-index:11;overflow:hidden}</p>
+<p class="p1">.popup{position:absolute;top:33%;left:50%;font-family:'Russo One';font-size:18px;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>letter-spacing:1px;text-shadow:0 2px 10px rgba(0,0,0,.6);white-space:nowrap;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>animation:popFloat 1s ease-out forwards}</p>
+<p class="p1">.popup.trick{color:var(--amber);font-size:21px}</p>
+<p class="p1">.popup.good{color:#ffd9a0}</p>
+<p class="p1">.popup.near{color:var(--ice)}</p>
+<p class="p1">.popup.bad{color:var(--bad);font-size:15px}</p>
+<p class="p1">.popup.info{color:var(--snow);font-size:15px}</p>
+<p class="p1">@keyframes popFloat{0%{opacity:0;transform:translate(-50%,16px) scale(.8)}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>14%{opacity:1;transform:translate(-50%,0) scale(1.06)}30%{transform:translate(-50%,-4px) scale(1)}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>100%{opacity:0;transform:translate(-50%,-52px)}}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ── оверлеи ───────────────────────────────────── */</p>
+<p class="p1">.overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:linear-gradient(180deg,rgba(4,7,18,.62),rgba(6,10,24,.85));transition:opacity .45s}</p>
+<p class="p1">.panelBig{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--amber);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>clip-path:polygon(0 0,100% 0,calc(100% - 26px) 100%,26px 100%);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>padding:38px 54px;text-align:center;width:min(620px,92vw)}</p>
+<p class="p1">#title{font-family:'Russo One';font-size:clamp(54px,10vw,92px);letter-spacing:8px;line-height:1;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>color:var(--snow);text-shadow:0 0 34px rgba(255,171,74,.3)}</p>
+<p class="p1">#title b{color:var(--amber);font-weight:400}</p>
+<p class="p1">.tagline{margin-top:10px;font-size:12px;letter-spacing:4px;color:var(--steel);font-weight:600}</p>
+<p class="p1">.ctrls{margin:26px auto 4px;display:grid;grid-template-columns:auto auto;gap:8px 18px;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>justify-content:center;align-items:center;font-size:13px;color:var(--steel);font-weight:600;text-align:left}</p>
+<p class="p1">.key{display:inline-block;border:1px solid #5b6c92;border-bottom-width:3px;border-radius:6px;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:#141d38;color:var(--snow);font-family:'Manrope';font-weight:800;font-size:11px;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>padding:3px 8px;margin:0 2px;min-width:26px;text-align:center}</p>
+<p class="p1">.btn{margin-top:26px;font-family:'Russo One';font-size:18px;letter-spacing:2px;border:none;cursor:pointer;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:var(--amber);color:#1c1002;padding:15px 44px;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);transition:transform .12s,filter .12s}</p>
+<p class="p1">.btn:hover{filter:brightness(1.12);transform:translateY(-2px)}</p>
+<p class="p1">.btn:active{transform:translateY(1px)}</p>
+<p class="p1">.subBtn{display:block;margin:14px auto 0;font-size:11px;letter-spacing:2px;color:var(--steel);font-weight:600}</p>
+<p class="p1">#menuBest{margin-top:18px;font-size:12px;letter-spacing:2px;color:var(--amber);font-weight:800}</p>
+<p class="p1">.ovTitle{font-family:'Russo One';font-size:52px;letter-spacing:5px;color:var(--snow)}</p>
+<p class="p1">.ovTitle.bad{color:var(--bad)}</p>
+<p class="p1">#overReason{margin-top:8px;font-size:14px;color:var(--steel);font-weight:600;letter-spacing:1px}</p>
+<p class="p1">.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px 30px;margin:26px auto 0;max-width:400px;text-align:left}</p>
+<p class="p1">.stats .lbl{margin-bottom:2px}</p>
+<p class="p1">.stats .v{font-family:'Russo One';font-size:24px}</p>
+<p class="p1">#recordBadge{margin-top:18px;display:inline-block;background:var(--amber);color:#1c1002;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>font-family:'Russo One';font-size:14px;letter-spacing:2px;padding:7px 20px;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);animation:recPulse 1s infinite alternate}</p>
+<p class="p1">@keyframes recPulse{from{filter:brightness(1)}to{filter:brightness(1.35)}}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ── сенсорные кнопки ──────────────────────────── */</p>
+<p class="p1">#touch{position:fixed;inset:0;z-index:15;pointer-events:none;display:none}</p>
+<p class="p1">#touch button{position:absolute;pointer-events:auto;border-radius:50%;border:1px solid var(--line);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>background:rgba(12,19,40,.6);color:var(--snow);font-family:'Russo One';font-size:20px;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>width:72px;height:72px;transition:background .1s}</p>
+<p class="p1">#touch button:active{background:rgba(255,171,74,.45)}</p>
+<p class="p1">#tbL{left:22px;bottom:96px}#tbR{left:112px;bottom:96px}</p>
+<p class="p1">#tbJ{right:22px;bottom:96px;width:88px;height:88px;font-size:13px;letter-spacing:1px}</p>
+<p class="p1">#tbD{right:126px;bottom:100px;width:60px;height:60px;font-size:15px}</p>
+<p class="p2"><br></p>
+<p class="p1">@media (max-width:720px){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>#hint{display:none}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>#scoreVal{font-size:22px}#speedVal{font-size:32px}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>.panelBig{padding:26px 22px}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>#comboBox{right:60px}</p>
+<p class="p1">}</p>
+<p class="p1">&lt;/style&gt;</p>
+<p class="p1">&lt;/head&gt;</p>
+<p class="p1">&lt;body&gt;</p>
+<p class="p1">&lt;div id="app"&gt;&lt;/div&gt;</p>
+<p class="p1">&lt;div id="vignette"&gt;&lt;/div&gt;</p>
+<p class="p1">&lt;div id="flash"&gt;&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="hud" class="hidden"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="scoreBox" class="panel"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="lbl"&gt;ОЧКИ&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="scoreVal"&gt;0&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="bestVal"&gt;РЕКОРД 0&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="distBox"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="distVal"&gt;0 м&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="stageName"&gt;ЭТАП 1 · ТИХИЙ СКЛОН&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="comboBox" class="hidden"&gt;&lt;span id="comboMult"&gt;×1&lt;/span&gt;&lt;span id="comboCnt"&gt;&lt;/span&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="speedBox" class="panel"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="speedVal"&gt;0&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="lbl"&gt;КМ/Ч&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="speedBar"&gt;&lt;i id="speedBarFill"&gt;&lt;/i&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;button id="muteBtn"&gt;ЗВУК: ВКЛ&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="hint"&gt;← → поворот&amp;nbsp;&amp;nbsp;·&amp;nbsp;&amp;nbsp;SPACE прыжок&amp;nbsp;&amp;nbsp;·&amp;nbsp;&amp;nbsp;W разгон&amp;nbsp;&amp;nbsp;·&amp;nbsp;&amp;nbsp;S тормоз / грэб&lt;/div&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="banner"&gt;&lt;/div&gt;</p>
+<p class="p1">&lt;div id="popups"&gt;&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="menu" class="overlay"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="panelBig"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="title"&gt;ПУРГ&lt;b&gt;А&lt;/b&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="tagline"&gt;БЕСКОНЕЧНЫЙ НОЧНОЙ СПУСК СКВОЗЬ МЕТЕЛЬ&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="ctrls"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;span&gt;&lt;span class="key"&gt;←&lt;/span&gt;&lt;span class="key"&gt;→&lt;/span&gt; / &lt;span class="key"&gt;A&lt;/span&gt;&lt;span class="key"&gt;D&lt;/span&gt;&lt;/span&gt;&lt;span&gt;поворот · вращение в воздухе&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;span&gt;&lt;span class="key"&gt;SPACE&lt;/span&gt;&lt;/span&gt;&lt;span&gt;прыжок (на трамплине — выше)&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;span&gt;&lt;span class="key"&gt;W&lt;/span&gt; / &lt;span class="key"&gt;↑&lt;/span&gt;&lt;/span&gt;&lt;span&gt;группировка — разгон&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;span&gt;&lt;span class="key"&gt;S&lt;/span&gt; / &lt;span class="key"&gt;↓&lt;/span&gt;&lt;/span&gt;&lt;span&gt;тормоз · в воздухе — грэб&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;span&gt;&lt;span class="key"&gt;P&lt;/span&gt; &lt;span class="key"&gt;M&lt;/span&gt; &lt;span class="key"&gt;R&lt;/span&gt;&lt;/span&gt;&lt;span&gt;пауза · звук · заново&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button id="startBtn" class="btn"&gt;НА СКЛОН — ENTER&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;span class="subBtn"&gt;держись между воротами · проезжай вплотную к препятствиям ради бонусов&lt;/span&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="menuBest"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="pauseOv" class="overlay hidden"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="panelBig"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="ovTitle"&gt;ПАУЗА&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="overReason"&gt;склон ждёт&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button id="resumeBtn" class="btn"&gt;ПРОДОЛЖИТЬ — P&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="over" class="overlay hidden"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;div class="panelBig"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="ovTitle bad"&gt;ПАДЕНИЕ&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="overReason"&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div class="stats"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;div&gt;&lt;div class="lbl"&gt;ОЧКИ&lt;/div&gt;&lt;div class="v" id="overScore"&gt;0&lt;/div&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;div&gt;&lt;div class="lbl"&gt;ДИСТАНЦИЯ&lt;/div&gt;&lt;div class="v" id="overDist"&gt;0 м&lt;/div&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;div&gt;&lt;div class="lbl"&gt;МАКС. СКОРОСТЬ&lt;/div&gt;&lt;div class="v" id="overSpeed"&gt;0 км/ч&lt;/div&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;div&gt;&lt;div class="lbl"&gt;РЕКОРД&lt;/div&gt;&lt;div class="v" id="overBest"&gt;0&lt;/div&gt;&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div id="recordBadge" class="hidden"&gt;НОВЫЙ РЕКОРД&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;button id="restartBtn" class="btn"&gt;ЕЩЁ РАЗ — R&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;/div&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;div id="touch"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;button id="tbL"&gt;◀&lt;/button&gt;&lt;button id="tbR"&gt;▶&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>&lt;button id="tbD"&gt;▼&lt;/button&gt;&lt;button id="tbJ"&gt;ПРЫЖОК&lt;/button&gt;</p>
+<p class="p1">&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1">&lt;script type="importmap"&gt;</p>
+<p class="p1">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</p>
+<p class="p1">&lt;/script&gt;</p>
+<p class="p1">&lt;script type="module"&gt;</p>
+<p class="p1">import * as THREE from 'three';</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ утилиты ═══════════ */</p>
+<p class="p1">const clamp=(v,a,b)=&gt;v&lt;a?a:v&gt;b?b:v;</p>
+<p class="p1">const lerp=(a,b,t)=&gt;a+(b-a)*t;</p>
+<p class="p1">const rand=(a=1,b)=&gt;b===undefined?Math.random()*a:a+Math.random()*(b-a);</p>
+<p class="p1">const pick=arr=&gt;arr[Math.floor(Math.random()*arr.length)];</p>
+<p class="p1">const $=id=&gt;document.getElementById(id);</p>
+<p class="p1">const fmt=n=&gt;Math.floor(n).toLocaleString('ru-RU');</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ рендерер / сцена ═══════════ */</p>
+<p class="p1">const renderer=new THREE.WebGLRenderer({antialias:true});</p>
+<p class="p1">renderer.setPixelRatio(Math.min(devicePixelRatio,2));</p>
+<p class="p1">renderer.setSize(innerWidth,innerHeight);</p>
+<p class="p1">renderer.toneMapping=THREE.ACESFilmicToneMapping;</p>
+<p class="p1">renderer.toneMappingExposure=1.15;</p>
+<p class="p1">renderer.outputColorSpace=THREE.SRGBColorSpace;</p>
+<p class="p1">$('app').appendChild(renderer.domElement);</p>
+<p class="p2"><br></p>
+<p class="p1">const scene=new THREE.Scene();</p>
+<p class="p1">scene.fog=new THREE.FogExp2(0x131a30,0.015);</p>
+<p class="p1">const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.1,900);</p>
+<p class="p1">camera.position.set(0,3.2,8.4);</p>
+<p class="p2"><br></p>
+<p class="p1">scene.add(new THREE.HemisphereLight(0x3a4f86,0x10182c,0.8));</p>
+<p class="p1">const moonLight=new THREE.DirectionalLight(0xffd9ae,1.45);</p>
+<p class="p1">moonLight.position.set(-30,42,25);</p>
+<p class="p1">scene.add(moonLight);</p>
+<p class="p1">const warmPt=new THREE.PointLight(0xff9a4d,10,30,2);</p>
+<p class="p1">scene.add(warmPt);</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ небесный купол: ночь, луна, звёзды ═══════════ */</p>
+<p class="p1">const skyMat=new THREE.ShaderMaterial({</p>
+<p class="p1"><span class="Apple-converted-space">  </span>side:THREE.BackSide,depthWrite:false,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>uniforms:{uTime:{value:0},uMoon:{value:new THREE.Vector3(-0.42,0.30,-0.86).normalize()}},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>vertexShader:`varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>fragmentShader:`</p>
+<p class="p1"><span class="Apple-converted-space">    </span>varying vec3 vP;uniform float uTime;uniform vec3 uMoon;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>float hash(vec3 p){p=fract(p*0.3183+vec3(0.1,0.2,0.3));p*=17.0;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>void main(){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>vec3 d=normalize(vP);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>float h=clamp(d.y,-0.1,1.0);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>vec3 zen=vec3(0.024,0.035,0.09), mid=vec3(0.06,0.09,0.19), hor=vec3(0.10,0.12,0.20);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>vec3 col=mix(hor,mid,smoothstep(0.0,0.18,h));</p>
+<p class="p1"><span class="Apple-converted-space">      </span>col=mix(col,zen,smoothstep(0.15,0.6,h));</p>
+<p class="p1"><span class="Apple-converted-space">      </span>float md=max(dot(d,uMoon),0.0);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>col+=vec3(1.0,0.62,0.32)*pow(md,60.0)*1.3;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>col+=vec3(0.9,0.5,0.25)*pow(md,6.0)*0.16;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>float disk=smoothstep(0.9992,0.99965,md);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>col=mix(col,vec3(1.0,0.9,0.72)*1.6,disk);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(h&gt;0.12){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>vec3 g=floor(d*220.0);float rnd=hash(g);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>float st=step(0.9975,rnd)*(0.5+0.5*sin(uTime*2.0+rnd*40.0));</p>
+<p class="p1"><span class="Apple-converted-space">        </span>col+=vec3(0.8,0.85,1.0)*st*smoothstep(0.12,0.4,h)*0.7;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>gl_FragColor=vec4(col,1.0);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}`</p>
+<p class="p1">});</p>
+<p class="p1">scene.add(new THREE.Mesh(new THREE.SphereGeometry(520,24,16),skyMat));</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ текстура вельвета (склон) ═══════════ */</p>
+<p class="p1">function makeGroundTexture(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const c=document.createElement('canvas');c.width=c.height=512;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=c.getContext('2d');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>g.fillStyle='#dde5f3';g.fillRect(0,0,512,512);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;26;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const x=rand(512),y=rand(512),r=rand(40,120);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const gr=g.createRadialGradient(x,y,0,x,y,r);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const white=Math.random()&lt;0.5;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>gr.addColorStop(0,white?'rgba(255,255,255,0.10)':'rgba(150,172,214,0.10)');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>gr.addColorStop(1,'rgba(0,0,0,0)');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>g.fillStyle=gr;g.fillRect(x-r,y-r,r*2,r*2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let y=0;y&lt;512;y+=7){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>g.fillStyle=(y%14&lt;7)?'rgba(255,255,255,0.10)':'rgba(128,148,190,0.10)';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>g.fillRect(0,y,512,2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;520;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>g.fillStyle=`rgba(255,255,255,${rand(0.4,0.95)})`;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>g.fillRect(rand(512),rand(512),rand()&lt;0.85?1:2,rand()&lt;0.85?1:2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;9;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>g.fillStyle='rgba(255,190,120,0.8)';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>g.fillRect(rand(512),rand(512),2,2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const t=new THREE.CanvasTexture(c);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>t.wrapS=t.wrapT=THREE.RepeatWrapping;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>t.colorSpace=THREE.SRGBColorSpace;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>t.anisotropy=renderer.capabilities.getMaxAnisotropy();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return t;</p>
+<p class="p1">}</p>
+<p class="p1">const groundTex=makeGroundTexture();</p>
+<p class="p1">groundTex.repeat.set(7,42);</p>
+<p class="p1">const TILE_LEN=340/42;</p>
+<p class="p1">const ground=new THREE.Mesh(</p>
+<p class="p1"><span class="Apple-converted-space">  </span>new THREE.PlaneGeometry(96,340),</p>
+<p class="p1"><span class="Apple-converted-space">  </span>new THREE.MeshStandardMaterial({map:groundTex,roughness:0.95,metalness:0})</p>
+<p class="p1">);</p>
+<p class="p1">ground.rotation.x=-Math.PI/2;ground.position.z=-130;</p>
+<p class="p1">scene.add(ground);</p>
+<p class="p2"><br></p>
+<p class="p1">/* снежные валы по краям трассы */</p>
+<p class="p1">const bankMat=new THREE.MeshStandardMaterial({color:0xe6ecf8,roughness:1});</p>
+<p class="p1">const bankGeo=new THREE.BoxGeometry(4,1.5,340);</p>
+<p class="p1">for(const s of[-1,1]){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const b=new THREE.Mesh(bankGeo,bankMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>b.position.set(s*12.4,0.62,-130);scene.add(b);</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ горные силуэты ═══════════ */</p>
+<p class="p1">const mountGrp=new THREE.Group();scene.add(mountGrp);</p>
+<p class="p1">{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const far=new THREE.MeshStandardMaterial({color:0x0b1226,roughness:1,flatShading:true});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const near=new THREE.MeshStandardMaterial({color:0x101a34,roughness:1,flatShading:true});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;8;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const r=rand(45,95),h=rand(55,115);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const m=new THREE.Mesh(new THREE.ConeGeometry(r,h,5),Math.random()&lt;0.5?far:near);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>m.position.set(rand(-280,280),h/2-6,-rand(290,430));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>m.rotation.y=rand(Math.PI);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>mountGrp.add(m);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ еловый лес за трассой (пул) ═══════════ */</p>
+<p class="p1">const forestMat1=new THREE.MeshStandardMaterial({color:0x0c2126,roughness:1});</p>
+<p class="p1">const forestMat2=new THREE.MeshStandardMaterial({color:0x122a30,roughness:1});</p>
+<p class="p1">const forestCone=new THREE.ConeGeometry(1,1,6);</p>
+<p class="p1">const forest=[];</p>
+<p class="p1">function resetForestTree(f,initial){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const side=Math.random()&lt;0.5?-1:1;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const h=rand(5,10.5),r=rand(1.2,2.3);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>f.m.position.set(side*(15+rand(19)),h/2,initial?rand(-300,24):f.m.position.z-330);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>f.m.scale.set(r,h,r);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>f.m.userData.sway=rand(6.28);</p>
+<p class="p1">}</p>
+<p class="p1">for(let i=0;i&lt;76;i++){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const m=new THREE.Mesh(forestCone,Math.random()&lt;0.5?forestMat1:forestMat2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const f={m};resetForestTree(f,true);scene.add(m);forest.push(f);</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ фонари вдоль трассы ═══════════ */</p>
+<p class="p1">function radialTex(inner,outer){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const c=document.createElement('canvas');c.width=c.height=128;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=c.getContext('2d');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const gr=g.createRadialGradient(64,64,4,64,64,62);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>gr.addColorStop(0,inner);gr.addColorStop(1,outer);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>g.fillStyle=gr;g.fillRect(0,0,128,128);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;</p>
+<p class="p1">}</p>
+<p class="p1">const glowTex=radialTex('rgba(255,200,130,0.9)','rgba(255,140,50,0)');</p>
+<p class="p1">const poleMat=new THREE.MeshStandardMaterial({color:0x1d222b,roughness:0.9});</p>
+<p class="p1">const lampMat=new THREE.MeshStandardMaterial({color:0xffb050,emissive:0xff8a2a,emissiveIntensity:1.6,roughness:0.5});</p>
+<p class="p1">const lampGeo=new THREE.BoxGeometry(0.34,0.4,0.34);</p>
+<p class="p1">const poleGeo=new THREE.CylinderGeometry(0.07,0.09,2.7,6);</p>
+<p class="p1">const lanterns=[];</p>
+<p class="p1">const LANT_N=12,LANT_SP=44;</p>
+<p class="p1">for(let i=0;i&lt;LANT_N;i++){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=new THREE.Group();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const p=new THREE.Mesh(poleGeo,poleMat);p.position.y=1.35;g.add(p);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const l=new THREE.Mesh(lampGeo,lampMat);l.position.y=2.75;g.add(l);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const cap=new THREE.Mesh(new THREE.ConeGeometry(0.3,0.2,4),bankMat);cap.position.y=3.05;cap.rotation.y=Math.PI/4;g.add(cap);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffa64d,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0.5}));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>sp.position.y=2.75;sp.scale.set(2.4,2.4,1);g.add(sp);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>g.position.set((i%2?1:-1)*11.2,0,10-i*LANT_SP);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>scene.add(g);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>lanterns.push({g,sp,phase:rand(6.28)});</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ снегопад ═══════════ */</p>
+<p class="p1">const SNOW_N=1600;</p>
+<p class="p1">const snowPos=new Float32Array(SNOW_N*3);</p>
+<p class="p1">const snowSeed=new Float32Array(SNOW_N);</p>
+<p class="p1">for(let i=0;i&lt;SNOW_N;i++){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>snowPos[i*3]=rand(-36,36);snowPos[i*3+1]=rand(0,26);snowPos[i*3+2]=rand(-90,20);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>snowSeed[i]=rand(6.28);</p>
+<p class="p1">}</p>
+<p class="p1">const snowGeo=new THREE.BufferGeometry();</p>
+<p class="p1">snowGeo.setAttribute('position',new THREE.BufferAttribute(snowPos,3).setUsage(THREE.DynamicDrawUsage));</p>
+<p class="p1">const snowMat=new THREE.PointsMaterial({color:0xdfe8ff,size:0.11,transparent:true,opacity:0.6,depthWrite:false,sizeAttenuation:true});</p>
+<p class="p1">const snow=new THREE.Points(snowGeo,snowMat);</p>
+<p class="p1">snow.frustumCulled=false;scene.add(snow);</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ снежная пыль (спрей от доски) ═══════════ */</p>
+<p class="p1">const SP_N=320;</p>
+<p class="p1">const spPos=new Float32Array(SP_N*3),spVel=new Float32Array(SP_N*3),</p>
+<p class="p1"><span class="Apple-converted-space">      </span>spLife=new Float32Array(SP_N),spSize=new Float32Array(SP_N);</p>
+<p class="p1">for(let i=0;i&lt;SP_N;i++)spPos[i*3+1]=-60;</p>
+<p class="p1">const spGeo=new THREE.BufferGeometry();</p>
+<p class="p1">spGeo.setAttribute('position',new THREE.BufferAttribute(spPos,3).setUsage(THREE.DynamicDrawUsage));</p>
+<p class="p1">spGeo.setAttribute('aLife',new THREE.BufferAttribute(spLife,1).setUsage(THREE.DynamicDrawUsage));</p>
+<p class="p1">spGeo.setAttribute('aSize',new THREE.BufferAttribute(spSize,1).setUsage(THREE.DynamicDrawUsage));</p>
+<p class="p1">const spMat=new THREE.ShaderMaterial({</p>
+<p class="p1"><span class="Apple-converted-space">  </span>transparent:true,depthWrite:false,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>vertexShader:`attribute float aLife;attribute float aSize;varying float vA;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>void main(){vA=clamp(aLife*2.2,0.0,1.0);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>vec4 mv=modelViewMatrix*vec4(position,1.0);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>gl_PointSize=aSize*(150.0/-mv.z)*(0.35+0.65*vA);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>gl_Position=projectionMatrix*mv;}`,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>fragmentShader:`varying float vA;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>void main(){vec2 c=gl_PointCoord-0.5;float m=smoothstep(0.5,0.12,length(c));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>float a=m*vA*0.9;if(a&lt;0.02)discard;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>gl_FragColor=vec4(0.93,0.96,1.0,a);}`</p>
+<p class="p1">});</p>
+<p class="p1">const spray=new THREE.Points(spGeo,spMat);</p>
+<p class="p1">spray.frustumCulled=false;scene.add(spray);</p>
+<p class="p1">let spCursor=0;</p>
+<p class="p1">function emitSpray(n,px,py,pz,ox={}){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let k=0;k&lt;n;k++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const i=spCursor++%SP_N,i3=i*3;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spPos[i3]=px+(Math.random()-0.5)*(ox.sx||0.3);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spPos[i3+1]=py+Math.random()*(ox.sy||0.12);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spPos[i3+2]=pz+(Math.random()-0.5)*(ox.sz||0.3);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spVel[i3]=(ox.vx||0)+(Math.random()-0.5)*(ox.vsx||1.4);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spVel[i3+1]=(ox.vy||2)+Math.random()*(ox.vyr||2.2);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spVel[i3+2]=(ox.vz||4)+Math.random()*2.4;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spLife[i]=0.28+Math.random()*0.27;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spSize[i]=0.12+Math.random()*0.12;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ сноубордист ═══════════ */</p>
+<p class="p1">const jacketMat=new THREE.MeshStandardMaterial({color:0x27435e,roughness:0.8});</p>
+<p class="p1">const accentMat=new THREE.MeshStandardMaterial({color:0xff9a3c,roughness:0.6,emissive:0x552200,emissiveIntensity:0.4});</p>
+<p class="p1">const pantsMat=new THREE.MeshStandardMaterial({color:0x1d2733,roughness:0.9});</p>
+<p class="p1">const helmetMat=new THREE.MeshStandardMaterial({color:0x141a26,roughness:0.5});</p>
+<p class="p1">const skinMat=new THREE.MeshStandardMaterial({color:0xd9a184,roughness:0.9});</p>
+<p class="p1">const boardTopMat=new THREE.MeshStandardMaterial({color:0xff8a3c,roughness:0.55});</p>
+<p class="p1">const boardBaseMat=new THREE.MeshStandardMaterial({color:0x11131a,roughness:0.7});</p>
+<p class="p1">const scarfMat=new THREE.MeshStandardMaterial({color:0xd84f3f,roughness:0.95,side:THREE.DoubleSide});</p>
+<p class="p1">const box=(w,h,d,m)=&gt;new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);</p>
+<p class="p2"><br></p>
+<p class="p1">const riderG=new THREE.Group();riderG.rotation.order='YXZ';scene.add(riderG);</p>
+<p class="p1">const boardG=new THREE.Group();riderG.add(boardG);</p>
+<p class="p1">{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const deck=box(0.34,0.055,1.5,boardTopMat);deck.position.y=0.045;boardG.add(deck);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const base=box(0.32,0.03,1.44,boardBaseMat);base.position.y=0.015;boardG.add(base);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const s of[-1,1]){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const tip=box(0.3,0.05,0.22,boardTopMat);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>tip.position.set(0,0.1,s*0.82);tip.rotation.x=-s*0.55;boardG.add(tip);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const boot=box(0.16,0.12,0.3,pantsMat);boot.position.set(s*0.12,0.13,s*0.28);boardG.add(boot);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p1">function pivotBox(w,h,d,m){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const geo=new THREE.BoxGeometry(w,h,d);geo.translate(0,-h/2,0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return new THREE.Mesh(geo,m);</p>
+<p class="p1">}</p>
+<p class="p1">const legL=pivotBox(0.14,0.55,0.17,pantsMat);legL.position.set(-0.12,0.62,0.28);riderG.add(legL);</p>
+<p class="p1">const legR=pivotBox(0.14,0.55,0.17,pantsMat);legR.position.set(0.12,0.62,-0.28);riderG.add(legR);</p>
+<p class="p1">const torso=new THREE.Group();riderG.add(torso);</p>
+<p class="p1">const chest=box(0.48,0.58,0.28,jacketMat);chest.position.y=0.29;torso.add(chest);</p>
+<p class="p1">const stripe=box(0.49,0.1,0.29,accentMat);stripe.position.y=0.34;torso.add(stripe);</p>
+<p class="p1">const armL=pivotBox(0.11,0.5,0.13,jacketMat);armL.position.set(-0.29,0.52,0);torso.add(armL);</p>
+<p class="p1">const armR=pivotBox(0.11,0.5,0.13,jacketMat);armR.position.set(0.29,0.52,0);torso.add(armR);</p>
+<p class="p1">const headG=new THREE.Group();headG.position.y=0.62;torso.add(headG);</p>
+<p class="p1">{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const face=new THREE.Mesh(new THREE.SphereGeometry(0.15,12,10),skinMat);headG.add(face);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const helm=new THREE.Mesh(new THREE.SphereGeometry(0.175,12,10,0,Math.PI*2,0,Math.PI*0.62),helmetMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>helm.position.y=0.03;headG.add(helm);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const band=box(0.36,0.05,0.06,accentMat);band.position.set(0,0.03,-0.15);headG.add(band);</p>
+<p class="p1">}</p>
+<p class="p1">const scarf=[];</p>
+<p class="p1">for(let i=0;i&lt;5;i++){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const s=new THREE.Mesh(new THREE.PlaneGeometry(0.17,0.2),scarfMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>torso.add(s);scarf.push(s);</p>
+<p class="p1">}</p>
+<p class="p1">const blob=new THREE.Mesh(new THREE.CircleGeometry(0.75,20),</p>
+<p class="p1"><span class="Apple-converted-space">  </span>new THREE.MeshBasicMaterial({color:0x060a18,transparent:true,opacity:0.34,depthWrite:false}));</p>
+<p class="p1">blob.rotation.x=-Math.PI/2;scene.add(blob);</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ материалы / геометрии препятствий ═══════════ */</p>
+<p class="p1">const treeDarkMat=new THREE.MeshStandardMaterial({color:0x102e2c,roughness:1});</p>
+<p class="p1">const treeSnowMat=new THREE.MeshStandardMaterial({color:0xe8eef8,roughness:1});</p>
+<p class="p1">const trunkMat=new THREE.MeshStandardMaterial({color:0x241b12,roughness:1});</p>
+<p class="p1">const iceMat=new THREE.MeshStandardMaterial({color:0x9ccfe6,roughness:0.25,metalness:0.05,flatShading:true});</p>
+<p class="p1">const rockMat=new THREE.MeshStandardMaterial({color:0x5c6674,roughness:0.95,flatShading:true});</p>
+<p class="p1">const woodMat=new THREE.MeshStandardMaterial({color:0x4d3a28,roughness:0.9});</p>
+<p class="p1">const rampWoodMat=new THREE.MeshStandardMaterial({color:0x3a2d1f,roughness:0.9});</p>
+<p class="p1">const lipMat=new THREE.MeshStandardMaterial({color:0xffab4a,emissive:0xff7a2a,emissiveIntensity:1.4,roughness:0.5});</p>
+<p class="p1">const coneGeo=r=&gt;new THREE.ConeGeometry(r,1,8);</p>
+<p class="p2"><br></p>
+<p class="p1">function buildTree(s){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=new THREE.Group();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.09*s,0.14*s,0.6*s,6),trunkMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>trunk.position.y=0.3*s;g.add(trunk);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const tiers=[[1.05,1.3,1.25],[0.78,1.15,2.0],[0.5,1.0,2.7]];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const[r,h,y]of tiers){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const c=new THREE.Mesh(coneGeo(r*s),treeDarkMat);c.scale.y=h*s;c.position.y=y*s;g.add(c);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const sn=new THREE.Mesh(coneGeo(r*s*1.02),treeSnowMat);sn.scale.y=0.18*s;sn.position.y=(y-h/2+0.06)*s;g.add(sn);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return g;</p>
+<p class="p1">}</p>
+<p class="p1">function buildBoulder(r){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=new THREE.Group();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const m=new THREE.Mesh(new THREE.IcosahedronGeometry(1,0),iceMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>m.scale.setScalar(r);m.position.y=r*0.72;m.rotation.set(rand(6.28),rand(6.28),rand(6.28));g.add(m);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const cap=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),treeSnowMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>cap.scale.set(r*0.6,r*0.25,r*0.6);cap.position.y=r*1.35;g.add(cap);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return g;</p>
+<p class="p1">}</p>
+<p class="p1">function buildRock(r){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=new THREE.Group();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const m=new THREE.Mesh(new THREE.DodecahedronGeometry(1,0),rockMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>m.scale.setScalar(r);m.position.y=r*0.62;m.rotation.set(rand(6.28),rand(6.28),0);g.add(m);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const cap=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),treeSnowMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>cap.scale.set(r*0.55,r*0.22,r*0.55);cap.position.y=r*1.18;g.add(cap);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return g;</p>
+<p class="p1">}</p>
+<p class="p1">function buildFence(w){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=new THREE.Group();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const s of[-1,1]){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const p=box(0.13,1.15,0.13,woodMat);p.position.set(s*(w/2-0.06),0.57,0);g.add(p);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const y of[0.5,0.92]){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const r=box(w,0.14,0.09,woodMat);r.position.y=y;g.add(r);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const sn=box(w,0.05,0.13,treeSnowMat);sn.position.y=1.02;g.add(sn);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return g;</p>
+<p class="p1">}</p>
+<p class="p1">function buildRamp(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=new THREE.Group();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const sh=new THREE.Shape();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>sh.moveTo(1.25,0);sh.lineTo(-1.25,0);sh.lineTo(-1.25,0.9);sh.closePath();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const geo=new THREE.ExtrudeGeometry(sh,{depth:2.6,bevelEnabled:false});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>geo.translate(0,0,-1.3);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const body=new THREE.Mesh(geo,rampWoodMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>body.rotation.y=-Math.PI/2;g.add(body);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const slope=new THREE.Mesh(new THREE.PlaneGeometry(2.6,2.62),treeSnowMat);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>slope.rotation.x=-1.23;slope.position.set(0,0.47,0.03);g.add(slope);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const lip=box(2.7,0.09,0.12,lipMat);lip.position.set(0,0.93,-1.22);g.add(lip);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return g;</p>
+<p class="p1">}</p>
+<p class="p1">const flagMatBase=new THREE.MeshStandardMaterial({color:0xffab4a,emissive:0xff7a2a,emissiveIntensity:0.35,side:THREE.DoubleSide,roughness:0.7});</p>
+<p class="p1">const bulbMatBase=new THREE.MeshStandardMaterial({color:0xffd9a0,emissive:0xffb050,emissiveIntensity:1.5});</p>
+<p class="p1">const gatePoleMat=new THREE.MeshStandardMaterial({color:0x22262e,roughness:0.8});</p>
+<p class="p1">function buildGate(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const g=new THREE.Group();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const flags=[];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const s of[-1,1]){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const p=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.08,2.3,6),gatePoleMat);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>p.position.set(s*3,1.15,0);g.add(p);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const b=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6),bulbMatBase.clone());</p>
+<p class="p1"><span class="Apple-converted-space">    </span>b.position.set(s*3,2.36,0);g.add(b);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const fShape=new THREE.Shape();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>fShape.moveTo(0,0);fShape.lineTo(-s*0.95,0.2);fShape.lineTo(0,0.42);fShape.closePath();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const f=new THREE.Mesh(new THREE.ShapeGeometry(fShape),flagMatBase.clone());</p>
+<p class="p1"><span class="Apple-converted-space">    </span>f.position.set(s*3,1.85,0);g.add(f);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>flags.push({f,b});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>g.userData.flags=flags;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return g;</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ состояние игры ═══════════ */</p>
+<p class="p1">const STAGES=['ТИХИЙ СКЛОН','ВЕТЕР КРЕПЧАЕТ','МЕТЕЛЬ','БУРАН','БЕЛАЯ ТЬМА','ШТОРМОВОЙ ПЕРЕВАЛ','ЛЕДЯНОЙ ГРЕБЕНЬ','ПОСЛЕДНИЙ СПУСК'];</p>
+<p class="p1">const stageName=s=&gt;s&lt;=STAGES.length?STAGES[s-1]:'ПУРГА ×'+s;</p>
+<p class="p1">const SPAWN_Z=-250,KILL_Z=16,COURSE=10.3;</p>
+<p class="p2"><br></p>
+<p class="p1">const G={</p>
+<p class="p1"><span class="Apple-converted-space">  </span>state:'menu',time:0,dist:0,score:0,speed:8,cruise:13,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>x:0,vx:0,py:0,vy:0,grounded:true,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>stage:1,combo:0,mult:1,maxSpeed:0,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>shake:0,camDip:0,crashT:0,crashReason:'',</p>
+<p class="p1"><span class="Apple-converted-space">  </span>spinAngle:0,spinVel:0,visualSpin:0,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>grabbing:false,grabTime:0,takeoffT:0,jumpBuf:0,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>crouch:0,roll:0,boardYaw:0,fogT:0.015,windAmp:0,</p>
+<p class="p1"><span class="Apple-converted-space">  </span>snowOpT:0.6,snowSizeT:0.11</p>
+<p class="p1">};</p>
+<p class="p1">let best={score:0,dist:0};</p>
+<p class="p1">try{const b=JSON.parse(localStorage.getItem('purga:best'));if(b&amp;&amp;b.score)best=b;}catch(e){}</p>
+<p class="p2"><br></p>
+<p class="p1">const obstacles=[];</p>
+<p class="p1">const pendingRows=[];</p>
+<p class="p1">let spawnCursor=0,pathX=0;</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ звук (процедурный WebAudio) ═══════════ */</p>
+<p class="p1">const A={ctx:null,master:null,windGain:null,windFilter:null,noise:null,muted:false};</p>
+<p class="p1">function initAudio(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(A.ctx)return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>try{</p>
+<p class="p1"><span class="Apple-converted-space">    </span>A.ctx=new (window.AudioContext||window.webkitAudioContext)();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>A.master=A.ctx.createGain();A.master.gain.value=0.6;A.master.connect(A.ctx.destination);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const len=A.ctx.sampleRate*2,buf=A.ctx.createBuffer(1,len,A.ctx.sampleRate),d=buf.getChannelData(0);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(let i=0;i&lt;len;i++)d[i]=Math.random()*2-1;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>A.noise=buf;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const src=A.ctx.createBufferSource();src.buffer=buf;src.loop=true;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>A.windFilter=A.ctx.createBiquadFilter();A.windFilter.type='lowpass';A.windFilter.frequency.value=300;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>A.windGain=A.ctx.createGain();A.windGain.gain.value=0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>src.connect(A.windFilter).connect(A.windGain).connect(A.master);src.start();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}catch(e){}</p>
+<p class="p1">}</p>
+<p class="p1">const audioOK=()=&gt;A.ctx&amp;&amp;!A.muted;</p>
+<p class="p1">function playNoise(o={}){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(!audioOK())return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const{dur=0.3,f0=800,f1=f0,q=1,g=0.3,type='lowpass',dl=0}=o;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const t=A.ctx.currentTime+dl;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const s=A.ctx.createBufferSource();s.buffer=A.noise;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const f=A.ctx.createBiquadFilter();f.type=type;f.Q.value=q;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>f.frequency.setValueAtTime(Math.max(40,f0),t);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>f.frequency.exponentialRampToValueAtTime(Math.max(40,f1),t+dur);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const gn=A.ctx.createGain();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>gn.gain.setValueAtTime(g,t);gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>s.connect(f).connect(gn).connect(A.master);s.start(t);s.stop(t+dur+0.05);</p>
+<p class="p1">}</p>
+<p class="p1">function playTone(o={}){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(!audioOK())return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const{f0=440,f1=f0,dur=0.15,type='sine',g=0.2,dl=0}=o;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const t=A.ctx.currentTime+dl;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const osc=A.ctx.createOscillator();osc.type=type;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>osc.frequency.setValueAtTime(f0,t);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>osc.frequency.exponentialRampToValueAtTime(Math.max(30,f1),t+dur);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const gn=A.ctx.createGain();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>gn.gain.setValueAtTime(g,t);gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>osc.connect(gn).connect(A.master);osc.start(t);osc.stop(t+dur+0.05);</p>
+<p class="p1">}</p>
+<p class="p1">const SFX={</p>
+<p class="p1"><span class="Apple-converted-space">  </span>jump(){playNoise({dur:0.22,f0:500,f1:1800,type:'bandpass',q:1.2,g:0.22});},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ramp(){SFX.jump();playTone({f0:300,f1:640,dur:0.25,type:'sawtooth',g:0.1});},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>land(){playTone({f0:95,f1:55,dur:0.16,g:0.35});playNoise({dur:0.12,f0:600,f1:200,g:0.18});},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>crash(){playNoise({dur:0.5,f0:1200,f1:120,g:0.5});playTone({f0:170,f1:50,dur:0.45,type:'sawtooth',g:0.2});},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>trick(){playTone({f0:660,dur:0.09,type:'square',g:0.15});playTone({f0:990,dur:0.12,type:'square',g:0.12,dl:0.08});},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>gate(){playTone({f0:830,dur:0.13,type:'triangle',g:0.17});playTone({f0:1245,dur:0.14,type:'triangle',g:0.11,dl:0.07});},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>near(){playNoise({dur:0.14,f0:2200,f1:900,type:'bandpass',g:0.14});},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>stumble(){playNoise({dur:0.2,f0:500,f1:150,g:0.3});},</p>
+<p class="p1"><span class="Apple-converted-space">  </span>stage(){playTone({f0:440,dur:0.12,type:'triangle',g:0.14});playTone({f0:660,dur:0.16,type:'triangle',g:0.14,dl:0.1});}</p>
+<p class="p1">};</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ UI ═══════════ */</p>
+<p class="p1">const vignetteEl=$('vignette'),flashEl=$('flash'),bannerEl=$('banner'),popupsEl=$('popups');</p>
+<p class="p1">function popup(text,cls='info'){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const el=document.createElement('div');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>el.className='popup '+cls;el.textContent=text;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>el.style.marginLeft=rand(-90,90)+'px';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>popupsEl.appendChild(el);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>el.addEventListener('animationend',()=&gt;el.remove());</p>
+<p class="p1">}</p>
+<p class="p1">function banner(text){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>bannerEl.textContent=text;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>bannerEl.classList.remove('show');void bannerEl.offsetWidth;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>bannerEl.classList.add('show');</p>
+<p class="p1">}</p>
+<p class="p1">function comboUIPop(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const cb=$('comboBox');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>cb.classList.remove('pop');void cb.offsetWidth;cb.classList.add('pop');</p>
+<p class="p1">}</p>
+<p class="p1">function flashScreen(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>flashEl.classList.remove('go');void flashEl.offsetWidth;flashEl.classList.add('go');</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ очки / комбо ═══════════ */</p>
+<p class="p1">const addScore=n=&gt;{G.score+=n;};</p>
+<p class="p1">function comboUp(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.combo++;G.mult=Math.min(5,1+G.combo*0.25);comboUIPop();</p>
+<p class="p1">}</p>
+<p class="p1">function comboReset(){G.combo=0;G.mult=1;}</p>
+<p class="p1">function nearMiss(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const pts=Math.round(30*G.mult);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>addScore(pts);comboUp();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>popup(`РЯДОМ! +${pts}`,'near');SFX.near();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.shake=Math.max(G.shake,0.09);</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ спавн трассы ═══════════ */</p>
+<p class="p1">function pathWalk(){pathX=clamp(pathX+rand(-3,3),-6.5,6.5);}</p>
+<p class="p1">function avoidX(minD,center=pathX){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;14;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const x=rand(-9.2,9.2);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(Math.abs(x-center)&gt;minD)return x;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return center&gt;0?center-minD-0.5:center+minD+0.5;</p>
+<p class="p1">}</p>
+<p class="p1">function addOb(group,type,x,props){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>group.position.set(x,0,SPAWN_Z);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>scene.add(group);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>obstacles.push({type,group,x,passed:false,used:false,flash:0,phase:rand(6.28),...props});</p>
+<p class="p1">}</p>
+<p class="p1">const spawnTree=(x,s=1)=&gt;addOb(buildTree(s),'tree',x,{r:0.55*s+0.2,h:3,zd:0.55});</p>
+<p class="p1">const spawnBoulder=x=&gt;{const r=rand(0.85,1.25);addOb(buildBoulder(r),'boulder',x,{r:r*0.95,h:1.45,zd:0.8});};</p>
+<p class="p1">const spawnRock=x=&gt;{const r=rand(0.9,1.3);addOb(buildRock(r),'rock',x,{r:r*0.9,h:1.6,zd:0.8});};</p>
+<p class="p1">const spawnFence=(cx,w)=&gt;addOb(buildFence(w),'fence',cx,{r:w/2,h:1.0,zd:0.4});</p>
+<p class="p1">const spawnRamp=x=&gt;addOb(buildRamp(),'ramp',x,{r:1.6,h:0,zd:1.0});</p>
+<p class="p1">const spawnGate=x=&gt;addOb(buildGate(),'gate',x,{half:2.75});</p>
+<p class="p1">const gapBase=()=&gt;clamp(21-G.stage*2.0,9,21);</p>
+<p class="p2"><br></p>
+<p class="p1">const rowGate=()=&gt;{pathWalk();return{gap:26,build(){spawnGate(pathX);}};};</p>
+<p class="p1">const rowTrees=()=&gt;{pathWalk();const s=G.stage;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return{gap:gapBase()+rand(0,7),build(){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const n=2+(Math.random()&lt;0.6?1:0)+(s&gt;=3&amp;&amp;Math.random()&lt;0.5?1:0);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(let i=0;i&lt;n;i++)spawnTree(avoidX(2.7),rand(0.8,1.25));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}};};</p>
+<p class="p1">const rowBoulder=()=&gt;{pathWalk();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return{gap:gapBase()+rand(0,6),build(){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spawnBoulder(avoidX(2.4));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(Math.random()&lt;0.45)spawnBoulder(avoidX(2.4));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}};};</p>
+<p class="p1">const rowRocks=()=&gt;{pathWalk();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return{gap:gapBase()+rand(2,8),build(){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>let cx=pathX+(Math.random()&lt;0.5?-1:1)*rand(3.5,6);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>cx=clamp(cx,-8,8);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(Math.abs(cx-pathX)&lt;3)cx=clamp(pathX+(cx&gt;pathX?3.4:-3.4),-8,8);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const n=2+(Math.random()&lt;0.5?1:0);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(let i=0;i&lt;n;i++)spawnRock(clamp(cx+rand(-1.4,1.4),-9,9));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}};};</p>
+<p class="p1">const rowFence=()=&gt;{pathWalk();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return{gap:gapBase()+rand(2,8),build(){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const force=Math.random()&lt;0.55;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const cx=force?pathX:clamp(pathX+(Math.random()&lt;0.5?-1:1)*rand(3.5,5.5),-7.5,7.5);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spawnFence(cx,rand(4.2,7));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}};};</p>
+<p class="p1">const rowRamp=()=&gt;{pathWalk();const px=pathX;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return{gap:20,build(){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spawnRamp(px);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(Math.random()&lt;0.65){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pendingRows.push({gap:14,build(){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(Math.random()&lt;0.5)spawnFence(pathX,rand(4,5.5));</p>
+<p class="p1"><span class="Apple-converted-space">        </span>else spawnBoulder(pathX+rand(-0.8,0.8));</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}};};</p>
+<p class="p1">const rowSlalom=()=&gt;{pathWalk();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return{gap:12,build(){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for(let i=0;i&lt;4;i++){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>pendingRows.push({gap:11,build(){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const gx=(i%2?-4.2:4.2)+rand(-1,1);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>for(let k=0;k&lt;3;k++)spawnTree(avoidX(2.4,gx),rand(0.85,1.2));</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}};};</p>
+<p class="p2"><br></p>
+<p class="p1">function randomRow(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const t=[[1.1,rowGate],[3,rowTrees],[1.8,rowBoulder],[1.9,rowFence],[1.7,rowRamp]];</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.stage&gt;=2)t.push([1.5,rowRocks]);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.stage&gt;=3)t.push([1.3,rowSlalom]);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let sum=0;for(const[w]of t)sum+=w;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let r=Math.random()*sum;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const[w,fn]of t){r-=w;if(r&lt;=0)return fn();}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return rowTrees();</p>
+<p class="p1">}</p>
+<p class="p1">function processSpawns(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let guard=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>while(G.dist&gt;=spawnCursor&amp;&amp;guard++&lt;3){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const row=pendingRows.shift()||randomRow();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>row.build();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spawnCursor+=row.gap;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ столкновения / события трассы ═══════════ */</p>
+<p class="p1">const REASONS={tree:'Врезался в ель',boulder:'Ледяная глыба',rock:'Скальный выступ',</p>
+<p class="p1"><span class="Apple-converted-space">  </span>fence:'Не перепрыгнул ограждение',spin:'Поймал кант при приземлении'};</p>
+<p class="p2"><br></p>
+<p class="p1">function crash(reason){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state!=='running')return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.state='crash';G.crashT=0;G.crashReason=REASONS[reason]||'Падение';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>comboReset();SFX.crash();flashScreen();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.shake=0.7;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>emitSpray(40,G.x,0.1,0,{sx:1.2,vx:0,vy:2,vyr:4,vz:3,vsx:5});</p>
+<p class="p1">}</p>
+<p class="p1">function rampLaunch(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.grounded=false;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.vy=8.6+G.speed*0.10;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.takeoffT=G.time;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>popup('ТРАМПЛИН!','info');SFX.ramp();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.camDip=-0.35;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>emitSpray(12,G.x,0.1,0.8,{vx:0,vy:1.5,vz:5});</p>
+<p class="p1">}</p>
+<p class="p1">function doJump(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(!G.grounded)return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.grounded=false;G.vy=7.6;G.takeoffT=G.time;G.jumpBuf=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>SFX.jump();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>emitSpray(8,G.x,0.05,0.4,{vx:0,vy:1.2,vz:5});</p>
+<p class="p1">}</p>
+<p class="p1">function onLand(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const air=G.time-G.takeoffT;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.grounded=true;G.py=0;G.vy=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.camDip=0.5;G.shake=Math.max(G.shake,0.1);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>SFX.land();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>emitSpray(24,G.x,0.05,0,{sx:0.9,vx:0,vy:1.5,vyr:3,vz:4,vsx:3});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(air&gt;0.35){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const total=Math.abs(G.spinAngle);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const norm=((G.spinAngle%360)+360)%360;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const off=Math.min(norm,360-norm);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const signed=norm&gt;180?norm-360:norm;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(total&gt;140){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(off&lt;45){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const deg=Math.max(180,Math.round(total/180)*180);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const pts=Math.round(deg*G.mult);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>addScore(pts);comboUp();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>popup(`${deg}° · ЧИСТО +${pts}`,'trick');SFX.trick();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>G.visualSpin=signed;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}else if(off&lt;80){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>G.speed*=0.6;comboReset();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>popup('ЖЁСТКОЕ ПРИЗЕМЛЕНИЕ','bad');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>SFX.stumble();G.shake=Math.max(G.shake,0.3);</p>
+<p class="p1"><span class="Apple-converted-space">        </span>G.visualSpin=signed;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}else{crash('spin');return;}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.grabTime&gt;0.25&amp;&amp;total&lt;=140){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const pts=Math.round(40*G.mult);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>addScore(pts);comboUp();popup(`ГРЭБ +${pts}`,'trick');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(air&gt;1.25){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const pts=Math.round(60*G.mult);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>addScore(pts);popup(`БОЛЬШОЙ ВОЗДУХ +${pts}`,'trick');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.spinAngle=0;G.spinVel=0;G.grabTime=0;G.grabbing=false;</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ этапы ═══════════ */</p>
+<p class="p1">function checkStage(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const st=Math.floor(G.dist/450)+1;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(st!==G.stage){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.stage=st;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>banner(`ЭТАП ${st} · ${stageName(st)}`);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>SFX.stage();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.cruise=Math.min(13+(st-1)*1.9,29);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.fogT=Math.min(0.015+(st-1)*0.0035,0.036);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.snowOpT=Math.min(0.5+st*0.08,0.9);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.snowSizeT=Math.min(0.1+st*0.012,0.2);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.windAmp=st&gt;=3?(st-2)*0.5:0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ ввод ═══════════ */</p>
+<p class="p1">const K={left:false,right:false,up:false,down:false};</p>
+<p class="p1">const KEYMAP={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',</p>
+<p class="p1"><span class="Apple-converted-space">  </span>ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down'};</p>
+<p class="p1">addEventListener('keydown',e=&gt;{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>initAudio();if(A.ctx&amp;&amp;A.ctx.state==='suspended')A.ctx.resume();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(KEYMAP[e.code]){K[KEYMAP[e.code]]=true;e.preventDefault();return;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(e.code==='Space'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>e.preventDefault();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.state==='running')G.jumpBuf=0.14;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if(G.state==='menu')startGame();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if(G.state==='over')restart();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(e.code==='Enter'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.state==='menu')startGame();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if(G.state==='over')restart();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(e.code==='KeyR'&amp;&amp;(G.state==='over'||G.state==='running'||G.state==='paused'))restart();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(e.code==='KeyM')toggleMute();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(e.code==='KeyP'||e.code==='Escape')togglePause();</p>
+<p class="p1">});</p>
+<p class="p1">addEventListener('keyup',e=&gt;{if(KEYMAP[e.code]){K[KEYMAP[e.code]]=false;e.preventDefault();}});</p>
+<p class="p1">addEventListener('blur',()=&gt;{if(G.state==='running')togglePause();});</p>
+<p class="p2"><br></p>
+<p class="p1">function bindTouchBtn(id,key){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const el=$(id);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const on=e=&gt;{e.preventDefault();initAudio();K[key]=true;};</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const off=e=&gt;{e.preventDefault();K[key]=false;};</p>
+<p class="p1"><span class="Apple-converted-space">  </span>el.addEventListener('pointerdown',on);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>el.addEventListener('pointerup',off);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>el.addEventListener('pointercancel',off);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>el.addEventListener('pointerleave',off);</p>
+<p class="p1">}</p>
+<p class="p1">bindTouchBtn('tbL','left');bindTouchBtn('tbR','right');bindTouchBtn('tbD','down');</p>
+<p class="p1">{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const el=$('tbJ');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>el.addEventListener('pointerdown',e=&gt;{e.preventDefault();initAudio();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.state==='running')G.jumpBuf=0.14;});</p>
+<p class="p1">}</p>
+<p class="p1">if(matchMedia('(pointer:coarse)').matches||'ontouchstart' in window)$('touch').style.display='block';</p>
+<p class="p2"><br></p>
+<p class="p1">function toggleMute(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>initAudio();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>A.muted=!A.muted;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(A.master)A.master.gain.value=A.muted?0:0.6;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('muteBtn').textContent=A.muted?'ЗВУК: ВЫКЛ':'ЗВУК: ВКЛ';</p>
+<p class="p1">}</p>
+<p class="p1">$('muteBtn').addEventListener('click',e=&gt;{e.stopPropagation();toggleMute();});</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ управление состоянием ═══════════ */</p>
+<p class="p1">function reset(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.score=0;G.dist=0;G.stage=1;G.cruise=13;G.combo=0;G.mult=1;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.speed=10;G.x=0;G.vx=0;G.py=0;G.vy=0;G.grounded=true;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.spinAngle=0;G.spinVel=0;G.visualSpin=0;G.grabTime=0;G.grabbing=false;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.shake=0;G.camDip=0;G.maxSpeed=0;G.jumpBuf=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.fogT=0.015;G.snowOpT=0.6;G.snowSizeT=0.11;G.windAmp=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>pathX=0;pendingRows.length=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const o of obstacles)scene.remove(o.group);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>obstacles.length=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>spawnCursor=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>while(spawnCursor&lt;210){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const row=randomRow();row.build();spawnCursor+=row.gap;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>scene.fog.density=G.fogT;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>snowMat.opacity=G.snowOpT;snowMat.size=G.snowSizeT;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>riderG.rotation.set(0,0,0);riderG.position.set(0,0,0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>camera.position.set(0,3.2,8.4);camera.fov=62;camera.updateProjectionMatrix();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>popupsEl.innerHTML='';</p>
+<p class="p1">}</p>
+<p class="p1">function startGame(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state==='running')return;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>reset();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.state='running';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('menu').classList.add('hidden');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('over').classList.add('hidden');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('hud').classList.remove('hidden');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>popup('ПОЕХАЛИ!','info');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>playTone({f0:330,f1:660,dur:0.2,type:'triangle',g:0.15});</p>
+<p class="p1"><span class="Apple-converted-space">  </span>setTimeout(()=&gt;$('hint').classList.add('hidden'),9000);</p>
+<p class="p1">}</p>
+<p class="p1">function restart(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('pauseOv').classList.add('hidden');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>startGame();</p>
+<p class="p1">}</p>
+<p class="p1">function togglePause(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state==='running'){G.state='paused';$('pauseOv').classList.remove('hidden');}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>else if(G.state==='paused'){G.state='running';$('pauseOv').classList.add('hidden');}</p>
+<p class="p1">}</p>
+<p class="p1">$('startBtn').addEventListener('click',startGame);</p>
+<p class="p1">$('restartBtn').addEventListener('click',restart);</p>
+<p class="p1">$('resumeBtn').addEventListener('click',togglePause);</p>
+<p class="p2"><br></p>
+<p class="p1">function showOver(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.state='over';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const sc=Math.floor(G.score);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const isRec=sc&gt;best.score;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(isRec){best={score:sc,dist:Math.floor(G.dist)};</p>
+<p class="p1"><span class="Apple-converted-space">    </span>try{localStorage.setItem('purga:best',JSON.stringify(best));}catch(e){}}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('overReason').textContent=G.crashReason;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('overScore').textContent=fmt(sc);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('overDist').textContent=fmt(G.dist)+' м';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('overSpeed').textContent=Math.round(G.maxSpeed*3.6)+' км/ч';</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('overBest').textContent=fmt(best.score);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('recordBadge').classList.toggle('hidden',!isRec);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>$('over').classList.remove('hidden');</p>
+<p class="p1">}</p>
+<p class="p1">const mb=$('menuBest');</p>
+<p class="p1">if(best.score&gt;0)mb.textContent=`ЛУЧШИЙ РЕЗУЛЬТАТ: ${fmt(best.score)} ОЧКОВ · ${fmt(best.dist)} М`;</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ поза и анимация райдера ═══════════ */</p>
+<p class="p1">function riderPose(dt){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const air=!G.grounded;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>let ct=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(air&amp;&amp;G.grabbing)ct=1;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>else if(G.grounded&amp;&amp;(K.up||K.down))ct=1;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>else if(air)ct=0.35;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.crouch=lerp(G.crouch,ct,Math.min(1,8*dt));</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>boardG.position.y=G.crouch*0.12+(air&amp;&amp;G.grabbing?0.14:0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>torso.position.y=0.60-G.crouch*0.20;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>torso.rotation.x=0.08+G.speed*0.004+G.crouch*0.35+(air&amp;&amp;G.grabbing?0.45:0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>legL.rotation.x=G.crouch*1.05;legR.rotation.x=G.crouch*1.05;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>legL.rotation.z=G.crouch*0.35;legR.rotation.z=-G.crouch*0.35;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>const carve=clamp(G.vx*0.06,-0.6,0.6);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const flap=Math.sin(G.time*8)*0.08;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>armL.rotation.z=0.55+carve*0.4+flap;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>armR.rotation.z=-0.55+carve*0.4-flap;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>armL.rotation.x=-0.2;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>armR.rotation.x=(air&amp;&amp;G.grabbing)?-1.7:-0.2;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>headG.rotation.y=-G.boardYaw*0.35;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>const spN=G.speed*0.02;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;scarf.length;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const s=scarf[i];</p>
+<p class="p1"><span class="Apple-converted-space">    </span>s.position.set(</p>
+<p class="p1"><span class="Apple-converted-space">      </span>Math.sin(G.time*9+i*1.2)*0.06+G.vx*0.012*i,</p>
+<p class="p1"><span class="Apple-converted-space">      </span>0.52-i*0.045+Math.sin(G.time*7+i)*0.03-(air?0.04:0),</p>
+<p class="p1"><span class="Apple-converted-space">      </span>0.16+i*(0.19+spN*0.1)</p>
+<p class="p1"><span class="Apple-converted-space">    </span>);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>s.rotation.x=-0.5-G.speed*0.012;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>s.rotation.y=Math.sin(G.time*6+i)*0.2;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state==='crash'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>riderG.rotation.x+=dt*9;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>riderG.rotation.z=Math.sin(G.crashT*12)*0.4;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>boardG.rotation.z+=dt*6;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>riderG.position.set(G.x,Math.max(0,Math.sin(Math.min(G.crashT*9,Math.PI))*0.4*(1-G.crashT*0.7)),0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}else{</p>
+<p class="p1"><span class="Apple-converted-space">    </span>riderG.rotation.x=0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>boardG.rotation.z=0;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const rollT=clamp(-G.vx*0.05,-0.5,0.5);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.roll=lerp(G.roll,rollT,Math.min(1,9*dt));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const yawT=-G.vx*0.045;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.boardYaw=lerp(G.boardYaw,yawT,Math.min(1,10*dt));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.visualSpin*=Math.max(0,1-6*dt);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>riderG.rotation.y=G.boardYaw+(air?G.spinAngle*Math.PI/180:G.visualSpin*Math.PI/180);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>riderG.rotation.z=G.roll;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>riderG.position.set(G.x,G.py,0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>blob.position.set(G.x,0.02,0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const bsc=clamp(1-G.py*0.28,0.3,1);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>blob.scale.set(bsc,bsc,1);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>blob.material.opacity=0.34*bsc;</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ камера ═══════════ */</p>
+<p class="p1">const camTarget=new THREE.Vector3();</p>
+<p class="p1">function cameraUpdate(dt){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>camTarget.set(G.x*0.55,3.05+G.py*0.35-G.camDip,8.3);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const k=1-Math.pow(0.0008,dt);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>camera.position.lerp(camTarget,k);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.shake&gt;0){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>camera.position.x+=(Math.random()-0.5)*G.shake*0.5;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>camera.position.y+=(Math.random()-0.5)*G.shake*0.4;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.shake=Math.max(0,G.shake-dt*2.2);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.camDip+=(0-G.camDip)*Math.min(1,6*dt);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>camera.lookAt(G.x*0.8,1.15+G.py*0.5,-9);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const fovT=62+(G.speed/34)*20+(K.up&amp;&amp;G.grounded?4:0);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>camera.fov=lerp(camera.fov,fovT,Math.min(1,5*dt));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>camera.updateProjectionMatrix();</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ обновление мира ═══════════ */</p>
+<p class="p1">function moveWorld(scroll,dt){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>groundTex.offset.y+=scroll/TILE_LEN;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const f of forest){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>f.m.position.z+=scroll;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>f.m.rotation.z=Math.sin(G.time*0.8+f.m.userData.sway)*0.012;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(f.m.position.z&gt;26)resetForestTree(f,false);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(const l of lanterns){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>l.g.position.z+=scroll;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(l.g.position.z&gt;14)l.g.position.z-=LANT_N*LANT_SP;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>l.sp.material.opacity=0.42+0.16*Math.sin(G.time*7+l.phase);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>mountGrp.position.x=-G.x*0.12;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>warmPt.position.set(G.x*0.5,2.4,-5);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>warmPt.intensity=9+Math.sin(G.time*11)*1.2;</p>
+<p class="p1">}</p>
+<p class="p1">function snowUpdate(dt,scroll){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>snowMat.opacity=lerp(snowMat.opacity,G.snowOpT,Math.min(1,dt));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>snowMat.size=lerp(snowMat.size,G.snowSizeT,Math.min(1,dt));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>scene.fog.density=lerp(scene.fog.density,G.fogT,Math.min(1,dt*0.7));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const fall=(1.4+G.stage*0.5);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const windX=Math.sin(G.time*0.4)*G.windAmp;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;SNOW_N;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const i3=i*3;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>snowPos[i3+1]-=fall*(0.7+0.6*Math.abs(Math.sin(snowSeed[i])))*dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>snowPos[i3]+=(windX*2+Math.sin(G.time*0.7+snowSeed[i])*0.4)*dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>snowPos[i3+2]+=scroll;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(snowPos[i3+1]&lt;0){snowPos[i3+1]+=26;snowPos[i3]=rand(-36,36);}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(snowPos[i3+2]&gt;20)snowPos[i3+2]-=110;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if(snowPos[i3+2]&lt;-90)snowPos[i3+2]+=110;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(snowPos[i3]&gt;36)snowPos[i3]-=72;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if(snowPos[i3]&lt;-36)snowPos[i3]+=72;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>snowGeo.attributes.position.needsUpdate=true;</p>
+<p class="p1">}</p>
+<p class="p1">function sprayUpdate(dt,scroll){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=0;i&lt;SP_N;i++){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(spLife[i]&lt;=0)continue;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spLife[i]-=dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const i3=i*3;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(spLife[i]&lt;=0){spPos[i3+1]=-60;continue;}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spVel[i3+1]-=12*dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spPos[i3]+=spVel[i3]*dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spPos[i3+1]+=spVel[i3+1]*dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>spPos[i3+2]+=spVel[i3+2]*dt+scroll;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(spPos[i3+1]&lt;0.02){spPos[i3+1]=0.02;spVel[i3+1]*=-0.3;}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>spGeo.attributes.position.needsUpdate=true;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>spGeo.attributes.aLife.needsUpdate=true;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>spGeo.attributes.aSize.needsUpdate=true;</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ главный апдейт ═══════════ */</p>
+<p class="p1">function update(dt){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>G.time+=dt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>skyMat.uniforms.uTime.value=G.time;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state==='menu'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.speed=lerp(G.speed,8,dt*2);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const tx=Math.sin(G.time*0.4)*3.5;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.x=lerp(G.x,tx,Math.min(1,dt*1.5));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.vx=(tx-G.x)*2;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}else if(G.state==='crash'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.speed=Math.max(0,G.speed-30*dt);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.crashT+=dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.crashT&gt;1.05)showOver();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}else if(G.state==='over'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.speed=0;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}else if(G.state==='running'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>/* скорость */</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const brake=K.down,tuck=K.up;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(brake)G.speed=Math.max(6,G.speed-26*dt);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else{</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const target=tuck?G.cruise+9:G.cruise;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const acc=tuck?12:(target&gt;G.speed?7:14);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.speed+=clamp(target-G.speed,-acc*dt,acc*dt);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.maxSpeed=Math.max(G.maxSpeed,G.speed);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>/* руление */</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const dir=(K.right?1:0)-(K.left?1:0);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.grounded){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.vx+=dir*26*(tuck?0.8:1)*dt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.vx-=G.vx*3.0*dt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(G.jumpBuf&gt;0){doJump();}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}else{</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.vx+=dir*6*dt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const svT=dir*5.2;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.spinVel=dir!==0?lerp(G.spinVel,svT,Math.min(1,8*dt)):G.spinVel*Math.max(0,1-5*dt);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.spinAngle+=G.spinVel*57.2958*dt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.grabbing=K.down;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(G.grabbing)G.grabTime+=dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.jumpBuf=Math.max(0,G.jumpBuf-dt);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>/* вертикаль */</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(!G.grounded){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.py+=G.vy*dt;G.vy-=23*dt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(G.py&lt;=0){G.py=0;onLand();}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>/* позиция и берега */</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.x+=G.vx*dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.windAmp&gt;0)G.vx+=Math.sin(G.time*0.5)*G.windAmp*0.4*dt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(Math.abs(G.x)&gt;COURSE){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.x=Math.sign(G.x)*COURSE;G.vx*=-0.25;G.speed*=0.988;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>G.shake=Math.max(G.shake,0.06);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>emitSpray(4,Math.sign(G.x)*10,0.2,0,{vx:-Math.sign(G.x)*2,vy:1.5,vz:4});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>/* спрей от кантов */</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.grounded&amp;&amp;Math.abs(G.vx)&gt;3.5)</p>
+<p class="p1"><span class="Apple-converted-space">      </span>emitSpray(3,G.x-Math.sign(G.vx)*0.3,0.04,0.3,{vx:Math.sign(G.vx)*1.2,vy:1.4,vz:4,vsx:1});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.grounded&amp;&amp;brake&amp;&amp;G.speed&gt;8)</p>
+<p class="p1"><span class="Apple-converted-space">      </span>emitSpray(5,G.x,0.05,0.5,{vx:0,vy:2,vyr:2.5,vz:6,vsx:2.5});</p>
+<p class="p1"><span class="Apple-converted-space">    </span>/* прогресс */</p>
+<p class="p1"><span class="Apple-converted-space">    </span>G.score+=G.speed*dt*2;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>processSpawns();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>checkStage();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>const scroll=G.speed*dt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state==='running')G.dist+=scroll;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>moveWorld(scroll,dt);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>/* препятствия */</p>
+<p class="p1"><span class="Apple-converted-space">  </span>for(let i=obstacles.length-1;i&gt;=0;i--){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const o=obstacles[i];</p>
+<p class="p1"><span class="Apple-converted-space">    </span>o.group.position.z+=scroll;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const z=o.group.position.z;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(z&gt;KILL_Z){scene.remove(o.group);obstacles.splice(i,1);continue;}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(o.type==='gate'){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const fl=o.group.userData.flags;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>for(let k=0;k&lt;fl.length;k++){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>fl[k].f.rotation.y=Math.sin(G.time*7+o.phase+k*1.7)*0.35;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(o.flash&gt;0){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>o.flash-=dt*1.8;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>for(const q of fl){</p>
+<p class="p1"><span class="Apple-converted-space">          </span>q.f.material.emissiveIntensity=0.35+Math.max(0,o.flash)*2.2;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>q.b.emissiveIntensity=1.5+Math.max(0,o.flash)*3;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.state!=='running')continue;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const dx=Math.abs(G.x-o.x);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(o.type==='gate'){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(!o.passed&amp;&amp;z&gt;0.35){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>o.passed=true;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(dx&lt;=o.half){</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const pts=Math.round(50*G.mult);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>addScore(pts);comboUp();</p>
+<p class="p1"><span class="Apple-converted-space">          </span>popup(`ВОРОТА +${pts}`,'good');</p>
+<p class="p1"><span class="Apple-converted-space">          </span>o.flash=1;SFX.gate();</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}else{</p>
+<p class="p1"><span class="Apple-converted-space">          </span>comboReset();popup('МИМО ВОРОТ','bad');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}else if(o.type==='ramp'){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(!o.used&amp;&amp;G.grounded&amp;&amp;Math.abs(z)&lt;1.1&amp;&amp;dx&lt;1.7){o.used=true;rampLaunch();}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}else{</p>
+<p class="p1"><span class="Apple-converted-space">      </span>if(Math.abs(z)&lt;o.zd&amp;&amp;dx&lt;o.r+0.45&amp;&amp;G.py&lt;o.h-0.12){crash(o.type);}</p>
+<p class="p1"><span class="Apple-converted-space">      </span>else if(!o.passed&amp;&amp;z&gt;0.45){</p>
+<p class="p1"><span class="Apple-converted-space">        </span>o.passed=true;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if(dx&lt;o.r+2.0)nearMiss();</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>riderPose(dt);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>cameraUpdate(dt);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>snowUpdate(dt,scroll);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>sprayUpdate(dt,scroll);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>/* HUD */</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state==='running'||G.state==='crash'){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>$('speedVal').textContent=Math.round(G.speed*3.6);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>$('speedBarFill').style.width=Math.min(100,G.speed/36*100)+'%';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>$('scoreVal').textContent=fmt(G.score);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>$('bestVal').textContent='РЕКОРД '+fmt(Math.max(best.score,G.score));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>$('distVal').textContent=fmt(G.dist)+' м';</p>
+<p class="p1"><span class="Apple-converted-space">    </span>$('stageName').textContent=`ЭТАП ${G.stage} · ${stageName(G.stage)}`;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const cb=$('comboBox');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if(G.combo&gt;=1){</p>
+<p class="p1"><span class="Apple-converted-space">      </span>cb.classList.remove('hidden');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>$('comboMult').textContent='×'+(Math.round(G.mult*10)/10);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>$('comboCnt').textContent='СЕРИЯ '+G.combo;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}else cb.classList.add('hidden');</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>vignetteEl.style.opacity=clamp(0.25+G.speed/34*0.35+(G.state==='crash'?0.2:0),0,0.8);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(A.windGain&amp;&amp;A.ctx){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const t=A.muted?0:(0.04+G.speed/34*0.16);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>A.windGain.gain.value=lerp(A.windGain.gain.value,t,0.1);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>A.windFilter.frequency.value=260+G.speed*26+G.stage*40;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">/* ═══════════ цикл ═══════════ */</p>
+<p class="p1">const clock=new THREE.Clock();</p>
+<p class="p1">function animate(){</p>
+<p class="p1"><span class="Apple-converted-space">  </span>requestAnimationFrame(animate);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const dt=Math.min(clock.getDelta(),0.05);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>if(G.state!=='paused')update(dt);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>renderer.render(scene,camera);</p>
+<p class="p1">}</p>
+<p class="p1">addEventListener('resize',()=&gt;{</p>
+<p class="p1"><span class="Apple-converted-space">  </span>camera.aspect=innerWidth/innerHeight;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>camera.updateProjectionMatrix();</p>
+<p class="p1"><span class="Apple-converted-space">  </span>renderer.setSize(innerWidth,innerHeight);</p>
+<p class="p1">});</p>
+<p class="p1">addEventListener('pointerdown',()=&gt;{initAudio();if(A.ctx&amp;&amp;A.ctx.state==='suspended')A.ctx.resume();},{once:false});</p>
+<p class="p2"><br></p>
+<p class="p1">reset();</p>
+<p class="p1">G.state='menu';</p>
+<p class="p1">animate();</p>
+<p class="p1">&lt;/script&gt;</p>
+<p class="p1">&lt;/body&gt;</p>
+<p class="p1">&lt;/html&gt;</p>
+</body>
+</html>

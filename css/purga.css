@@ -1,0 +1,124 @@
+:root{
+  --bg:#070b1a; --panel:rgba(12,19,40,.84); --steel:#8fa3c8; --line:rgba(127,147,189,.35);
+  --amber:#ffab4a; --amber2:#ff7a3c; --snow:#eef3ff; --bad:#ff5d4d; --ice:#9fd4e8;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
+  font-family:'Manrope',system-ui,sans-serif;color:var(--snow);
+  -webkit-user-select:none;user-select:none;touch-action:none}
+#app,#app canvas{position:fixed;inset:0;display:block}
+.hidden{opacity:0 !important;pointer-events:none !important}
+/* ── экранные слои ─────────────────────────────── */
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:5;opacity:.35;
+  background:radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(3,5,14,.92) 100%)}
+#flash{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:0;
+  background:radial-gradient(ellipse at 50% 60%, rgba(255,86,60,.5), rgba(120,20,20,.25) 60%, transparent)}
+#flash.go{animation:flashA .55s ease-out}
+@keyframes flashA{0%{opacity:1}100%{opacity:0}}
+/* ── HUD ───────────────────────────────────────── */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;font-variant-numeric:tabular-nums}
+.panel{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--amber);
+  clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%);padding:9px 22px 9px 14px}
+#scoreBox{position:absolute;top:16px;left:16px}
+.lbl{font-size:10px;letter-spacing:3px;color:var(--steel);font-weight:600}
+#scoreVal{font-family:'Russo One';font-size:30px;line-height:1.05;color:var(--snow)}
+#bestVal{font-size:11px;color:var(--steel);font-weight:600;letter-spacing:1px}
+#distBox{position:absolute;top:16px;left:50%;transform:translateX(-50%);text-align:center;
+  background:var(--panel);border:1px solid var(--line);padding:7px 26px;
+  clip-path:polygon(12px 0,calc(100% - 12px) 0,100% 100%,0 100%)}
+#distVal{font-family:'Russo One';font-size:22px}
+#stageName{font-size:10px;letter-spacing:3px;color:var(--amber);font-weight:800}
+#comboBox{position:absolute;top:16px;right:70px;background:var(--amber);color:#1c1002;
+  padding:8px 20px;clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);
+  font-family:'Russo One';font-size:17px;transition:transform .15s;transform-origin:right top}
+#comboBox.pop{transform:scale(1.18)}
+#comboBox span{display:block;text-align:center}
+#comboCnt{font-size:10px;letter-spacing:2px;font-family:'Manrope';font-weight:800}
+#speedBox{position:absolute;left:16px;bottom:16px;min-width:150px}
+#speedVal{font-family:'Russo One';font-size:44px;line-height:1;color:var(--snow);
+  text-shadow:0 0 24px rgba(255,171,74,.35)}
+#speedBar{width:100%;height:5px;background:rgba(127,147,189,.25);margin-top:7px;overflow:hidden}
+#speedBarFill{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--amber),var(--amber2))}
+#muteBtn,#themeBtn{position:absolute;top:14px;pointer-events:auto;cursor:pointer;
+  background:var(--panel);border:1px solid var(--line);color:var(--steel);
+  font-family:'Manrope';font-weight:800;font-size:11px;letter-spacing:2px;padding:9px 12px}
+#muteBtn{right:14px}
+#themeBtn{right:128px}
+#muteBtn:hover,#themeBtn:hover{color:var(--amber);border-color:var(--amber)}
+body.theme-day #vignette{opacity:.18;
+  background:radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(180,200,220,.55) 100%)}
+body.theme-day .overlay{
+  background:linear-gradient(180deg,rgba(220,232,245,.55),rgba(200,218,235,.78))}
+body.theme-day .key{background:#e8eef6;border-color:#8fa3c0;color:var(--snow)}
+body.theme-day #speedVal{text-shadow:0 0 18px rgba(255,171,74,.25)}
+body.theme-day #title{text-shadow:0 0 28px rgba(255,171,74,.22)}
+#hint{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  font-size:12px;color:var(--steel);letter-spacing:1px;background:var(--panel);
+  border:1px solid var(--line);padding:8px 18px;white-space:nowrap;transition:opacity 1.2s}
+/* ── баннер этапа / всплывающие очки ───────────── */
+#banner{position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:12;opacity:0;
+  font-family:'Russo One';font-size:26px;letter-spacing:2px;color:var(--snow);
+  background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--amber);
+  padding:12px 34px;pointer-events:none;white-space:nowrap}
+#banner.show{animation:bannerA 2.6s ease forwards}
+@keyframes bannerA{0%{opacity:0;transform:translate(-50%,-26px)}12%{opacity:1;transform:translate(-50%,0)}
+  78%{opacity:1}100%{opacity:0;transform:translate(-50%,10px)}}
+#popups{position:fixed;inset:0;pointer-events:none;z-index:11;overflow:hidden}
+.popup{position:absolute;top:33%;left:50%;font-family:'Russo One';font-size:18px;
+  letter-spacing:1px;text-shadow:0 2px 10px rgba(0,0,0,.6);white-space:nowrap;
+  animation:popFloat 1s ease-out forwards}
+.popup.trick{color:var(--amber);font-size:21px}
+.popup.good{color:#ffd9a0}
+.popup.near{color:var(--ice)}
+.popup.bad{color:var(--bad);font-size:15px}
+.popup.info{color:var(--snow);font-size:15px}
+@keyframes popFloat{0%{opacity:0;transform:translate(-50%,16px) scale(.8)}
+  14%{opacity:1;transform:translate(-50%,0) scale(1.06)}30%{transform:translate(-50%,-4px) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-52px)}}
+/* ── оверлеи ───────────────────────────────────── */
+.overlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,rgba(4,7,18,.62),rgba(6,10,24,.85));transition:opacity .45s}
+.panelBig{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--amber);
+  clip-path:polygon(0 0,100% 0,calc(100% - 26px) 100%,26px 100%);
+  padding:38px 54px;text-align:center;width:min(620px,92vw)}
+#title{font-family:'Russo One';font-size:clamp(54px,10vw,92px);letter-spacing:8px;line-height:1;
+  color:var(--snow);text-shadow:0 0 34px rgba(255,171,74,.3)}
+#title b{color:var(--amber);font-weight:400}
+.tagline{margin-top:10px;font-size:12px;letter-spacing:4px;color:var(--steel);font-weight:600}
+.ctrls{margin:26px auto 4px;display:grid;grid-template-columns:auto auto;gap:8px 18px;
+  justify-content:center;align-items:center;font-size:13px;color:var(--steel);font-weight:600;text-align:left}
+.key{display:inline-block;border:1px solid #5b6c92;border-bottom-width:3px;border-radius:6px;
+  background:#141d38;color:var(--snow);font-family:'Manrope';font-weight:800;font-size:11px;
+  padding:3px 8px;margin:0 2px;min-width:26px;text-align:center}
+.btn{margin-top:26px;font-family:'Russo One';font-size:18px;letter-spacing:2px;border:none;cursor:pointer;
+  background:var(--amber);color:#1c1002;padding:15px 44px;
+  clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);transition:transform .12s,filter .12s}
+.btn:hover{filter:brightness(1.12);transform:translateY(-2px)}
+.btn:active{transform:translateY(1px)}
+.subBtn{display:block;margin:14px auto 0;font-size:11px;letter-spacing:2px;color:var(--steel);font-weight:600}
+#menuBest{margin-top:18px;font-size:12px;letter-spacing:2px;color:var(--amber);font-weight:800}
+.ovTitle{font-family:'Russo One';font-size:52px;letter-spacing:5px;color:var(--snow)}
+.ovTitle.bad{color:var(--bad)}
+#pauseHint,#crashReason{margin-top:8px;font-size:14px;color:var(--steel);font-weight:600;letter-spacing:1px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:10px 30px;margin:26px auto 0;max-width:400px;text-align:left}
+.stats .lbl{margin-bottom:2px}
+.stats .v{font-family:'Russo One';font-size:24px}
+#recordBadge{margin-top:18px;display:inline-block;background:var(--amber);color:#1c1002;
+  font-family:'Russo One';font-size:14px;letter-spacing:2px;padding:7px 20px;
+  clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);animation:recPulse 1s infinite alternate}
+@keyframes recPulse{from{filter:brightness(1)}to{filter:brightness(1.35)}}
+/* ── сенсорные кнопки ──────────────────────────── */
+#touch{position:fixed;inset:0;z-index:15;pointer-events:none;display:none}
+#touch button{position:absolute;pointer-events:auto;border-radius:50%;border:1px solid var(--line);
+  background:rgba(12,19,40,.6);color:var(--snow);font-family:'Russo One';font-size:20px;
+  width:72px;height:72px;transition:background .1s}
+#touch button:active{background:rgba(255,171,74,.45)}
+#tbL{left:22px;bottom:96px}#tbR{left:112px;bottom:96px}
+#tbJ{right:22px;bottom:96px;width:88px;height:88px;font-size:13px;letter-spacing:1px}
+#tbD{right:126px;bottom:100px;width:60px;height:60px;font-size:15px}
+@media (max-width:720px){
+  #hint{display:none}
+  #scoreVal{font-size:22px}#speedVal{font-size:32px}
+  .panelBig{padding:26px 22px}
+  #comboBox{right:60px}
+}

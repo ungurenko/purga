@@ -1,0 +1,17 @@
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# local tooling / browser dumps
+.playwright-mcp/
+.chrome/
+element_clones/
+
+# editors & env
+.idea/
+.vscode/
+*.swp
+*.swo
+.env
+.env.*
