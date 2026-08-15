@@ -140,10 +140,12 @@ const spMat=new THREE.ShaderMaterial({
 const spray=new THREE.Points(spGeo,spMat);
 spray.frustumCulled=false;scene.add(spray);
 let spCursor=0;
+let spActive=0;
 
 export function emitSpray(n,px,py,pz,ox={}){
   for(let k=0;k<n;k++){
     const i=spCursor++%SP_N,i3=i*3;
+    if(spLife[i]<=0)spActive++;
     spPos[i3]=px+(Math.random()-0.5)*(ox.sx||0.3);
     spPos[i3+1]=py+Math.random()*(ox.sy||0.12);
     spPos[i3+2]=pz+(Math.random()-0.5)*(ox.sz||0.3);
@@ -199,20 +201,15 @@ export function blizzardSetDay(t){
   spMat.uniforms.uDay.value=t;
 }
 
-export function blizzardUpdate(dt,scroll,ctx){
+/* общие значения и плавные лерпы — каждый кадр */
+export function blizzardCommon(dt,ctx){
   const stage=ctx.stage||1;
   const windAmp=ctx.windAmp||0;
   const time=ctx.time||0;
   const speed=ctx.speed||0;
-  const dist=ctx.dist||0;
   const day=ctx.day||0;
   const opT=ctx.snowOpT??0.6;
   const sizeT=ctx.snowSizeT??0.11;
-  const gx=ctx.x||0;
-  const gy=ctx.y||0;
-  const grounded=!!ctx.grounded;
-  const vx=ctx.vx||0;
-
   const st=Math.min(1,Math.max(0,(stage-1)/7));
   snowMat.opacity=THREE.MathUtils.lerp(snowMat.opacity,opT*(0.85+st*0.25),Math.min(1,dt*2));
   snowMat.size=THREE.MathUtils.lerp(snowMat.size,sizeT*(1+st*0.35),Math.min(1,dt*2));
@@ -221,7 +218,14 @@ export function blizzardUpdate(dt,scroll,ctx){
   const streak=Math.min(1,Math.max(0,(speed-10)/22));
   camStreak.value=streak;
   camMat.uniforms.uStreak.value=streak;
+  if(ctx.grounded&&speed>8)emitRooster(ctx.x,ctx.y,speed,ctx.vx,dt);
+}
 
+/* фоновый снег — 60 Гц */
+export function blizzardSnow(dt,scroll,ctx){
+  const stage=ctx.stage||1;
+  const windAmp=ctx.windAmp||0;
+  const time=ctx.time||0;
   const fall=1.4+stage*0.5;
   const windX=Math.sin(time*0.4)*windAmp;
   for(let i=0;i<SNOW_N;i++){
@@ -236,7 +240,16 @@ export function blizzardUpdate(dt,scroll,ctx){
     else if(snowPos[i3]<-70)snowPos[i3]+=140;
   }
   snowGeo.attributes.position.needsUpdate=true;
+}
 
+/* позёмка — 30 Гц (тяжёлый terrainHeight на частицу) */
+export function blizzardDrift(dt,scroll,ctx){
+  const stage=ctx.stage||1;
+  const windAmp=ctx.windAmp||0;
+  const time=ctx.time||0;
+  const dist=ctx.dist||0;
+  const fall=1.4+stage*0.5;
+  const windX=Math.sin(time*0.4)*windAmp;
   for(let i=0;i<DRIFT_N;i++){
     const i3=i*3;
     const fl=fall*1.15+windAmp*0.4;
@@ -250,7 +263,15 @@ export function blizzardUpdate(dt,scroll,ctx){
     else if(driftPos[i3]<-48)driftPos[i3]+=96;
   }
   driftGeo.attributes.position.needsUpdate=true;
+}
 
+/* ближние хлопья у камеры — 60 Гц */
+export function blizzardCam(dt,ctx){
+  const time=ctx.time||0;
+  const windAmp=ctx.windAmp||0;
+  const speed=ctx.speed||0;
+  const streak=Math.min(1,Math.max(0,(speed-10)/22));
+  const windX=Math.sin(time*0.4)*windAmp;
   const camFall=2.4+speed*0.12;
   for(let i=0;i<CAM_N;i++){
     const i3=i*3;
@@ -266,12 +287,17 @@ export function blizzardUpdate(dt,scroll,ctx){
     }
   }
   camGeo.attributes.position.needsUpdate=true;
+}
 
+/* брызги/буран — 60 Гц; пропуск, когда частиц нет */
+export function blizzardSpray(dt,scroll,ctx){
+  if(spActive<=0)return;
+  const dist=ctx.dist||0;
   for(let i=0;i<SP_N;i++){
     if(spLife[i]<=0)continue;
     spLife[i]-=dt;
     const i3=i*3;
-    if(spLife[i]<=0){spPos[i3+1]=-60;continue;}
+    if(spLife[i]<=0){spActive--;spPos[i3+1]=-60;continue;}
     spVel[i3+1]-=14*dt;
     spPos[i3]+=spVel[i3]*dt;
     spPos[i3+1]+=spVel[i3+1]*dt;
@@ -282,8 +308,6 @@ export function blizzardUpdate(dt,scroll,ctx){
   spGeo.attributes.position.needsUpdate=true;
   spGeo.attributes.aLife.needsUpdate=true;
   spGeo.attributes.aSize.needsUpdate=true;
-
-  if(grounded&&speed>8)emitRooster(gx,gy,speed,vx,dt);
 }
 
 export {

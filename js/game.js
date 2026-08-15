@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clamp, lerp, rand, $, fmt } from './utils.js';
+import { clamp, lerp, $, fmt } from './utils.js';
 import {
   G, best, saveBest, stageName, FREERIDE_SOFT, FREERIDE_HARD, KILL_Z, SPAWN_Z,
   obstacles, pendingRows, track
@@ -7,16 +7,17 @@ import {
 import {
   renderer, scene, camera, skyMat,
   moonLight, warmPt,
-  forestUpdate, lanterns, LANT_N, LANT_SP,
+  forestUpdate, lanternUpdate,
   terrainHeight, terrainSlope, updateTerrain,
   sparkleU, snowU, trailEmit, trailUpdate, trailReset,
   mountainsUpdate, blobShadowUpdate, lanternLightsUpdate
 } from './scene.js';
-import { composer, setGrade } from './postfx.js';
+import { composer, setGrade, resizePost } from './postfx.js';
 import { qualityInit, qualityFrame, qualityTier } from './quality.js';
 import { riderG, boardG, riderPose, riderWeather } from './rider.js';
 import {
-  emitSpray, emitPowderBurst, blizzardUpdate
+  emitSpray, emitPowderBurst,
+  blizzardCommon, blizzardSnow, blizzardDrift, blizzardCam, blizzardSpray
 } from './blizzard.js';
 import { processSpawns } from './obstacles.js';
 import { THEME_NIGHT, THEME_DAY, dayFactor, themeTick, applyTheme, toggleTheme } from './theme.js';
@@ -24,6 +25,18 @@ import { A, initAudio, playTone, SFX, toggleMute } from './audio.js';
 import { vignetteEl, popupsEl, popup, banner, flashScreen, addScore, comboUp, comboReset } from './ui.js';
 import { K, setupInput } from './input.js';
 import { initCamera, cameraUpdate, addTrauma, impulseDip } from './camera.js';
+
+/* HUD: кеш элементов и апдейт 10 Гц, только при изменении */
+const HUD={
+  speed:$('speedVal'),bar:$('speedBarFill'),score:$('scoreVal'),best:$('bestVal'),
+  dist:$('distVal'),stage:$('stageName'),cb:$('comboBox'),
+  mult:$('comboMult'),cnt:$('comboCnt')
+};
+const _hudLast={};
+let _hudAcc=1;
+function _hudSet(el,key,val){
+  if(_hudLast[key]!==val){_hudLast[key]=val;el.textContent=val;}
+}
 
 /* ═══════════ столкновения / события трассы ═══════════ */
 const gyAt=(x=G.x,z=0)=>terrainHeight(x,G.dist-z);
@@ -126,21 +139,24 @@ function checkStage(){
 }
 
 /* ═══════════ обновление мира ═══════════ */
+/* тяжёлые системы тикают реже рендера; линейное движение не страдает */
+const SIM_T={terrain:1/60,snow:1/60,drift:1/30,cam:1/60,spray:1/60};
+const simA={terrain:1,snow:1,drift:1,cam:1,spray:1};
+const simS={snow:0,drift:0,cam:0,spray:0};
+function simTick(name){
+  if(simA[name]<SIM_T[name])return null;
+  const o={dt:simA[name],scroll:simS[name]};
+  simA[name]=0;simS[name]=0;
+  return o;
+}
+const _mvDir=new THREE.Vector3();
+const _wctx={stage:1,windAmp:0,time:0,speed:0,dist:0,day:0,snowOpT:0.6,snowSizeT:0.11,x:0,y:0,grounded:true,vx:0};
 function moveWorld(scroll,dt){
-  updateTerrain(G.dist);
+  const t=simTick('terrain');
+  if(t&&scroll!==0)updateTerrain(G.dist);
   forestUpdate(G.dist,scroll,G.time);
-  for(const l of lanterns){
-    l.g.position.z+=scroll;
-    if(l.g.position.z>14){
-      l.g.position.z-=LANT_N*LANT_SP;
-      l.x=(Math.random()<0.5?-1:1)*rand(5,32);
-    }
-    const lx=l.x??l.g.position.x;
-    l.g.position.x=lx;
-    l.g.position.y=terrainHeight(lx,G.dist-l.g.position.z);
-    const glowB=THEME_NIGHT.glowBase+(THEME_DAY.glowBase-THEME_NIGHT.glowBase)*dayFactor;
-    l.sp.material.opacity=glowB*(0.84+0.32*Math.sin(G.time*7+l.phase));
-  }
+  const glowB=THEME_NIGHT.glowBase+(THEME_DAY.glowBase-THEME_NIGHT.glowBase)*dayFactor;
+  lanternUpdate(G.dist,scroll,G.time,glowB);
   mountainsUpdate(G.x,dayFactor);
   const gy=terrainHeight(G.x*0.5,G.dist+5);
   warmPt.position.set(G.x*0.5,gy+2.4,-5);
@@ -148,8 +164,8 @@ function moveWorld(scroll,dt){
   warmPt.intensity=warmBase+Math.sin(G.time*11)*1.2*(1-dayFactor);
   const shTgt=moonLight.target.position;
   shTgt.set(G.x,terrainHeight(G.x,G.dist),0);
-  const dir=moonLight.position.clone().sub(shTgt).normalize();
-  moonLight.position.copy(shTgt).addScaledVector(dir,60);
+  _mvDir.subVectors(moonLight.position,shTgt).normalize();
+  moonLight.position.copy(shTgt).addScaledVector(_mvDir,60);
   moonLight.target.updateMatrixWorld();
   const airH=G.grounded?0:G.py;
   blobShadowUpdate(G.x,G.dist,airH,terrainSlope(G.x,G.dist));
@@ -160,11 +176,15 @@ function moveWorld(scroll,dt){
 }
 function weatherUpdate(dt,scroll){
   scene.fog.density=lerp(scene.fog.density,G.fogT,Math.min(1,dt*0.7));
-  blizzardUpdate(dt,scroll,{
-    stage:G.stage,windAmp:G.windAmp,time:G.time,speed:G.speed,
-    dist:G.dist,day:dayFactor,snowOpT:G.snowOpT,snowSizeT:G.snowSizeT,
-    x:G.x,y:G.y,grounded:G.grounded,vx:G.vx
-  });
+  const ctx=_wctx;
+  ctx.stage=G.stage;ctx.windAmp=G.windAmp;ctx.time=G.time;ctx.speed=G.speed;
+  ctx.dist=G.dist;ctx.day=dayFactor;ctx.snowOpT=G.snowOpT;ctx.snowSizeT=G.snowSizeT;
+  ctx.x=G.x;ctx.y=G.y;ctx.grounded=G.grounded;ctx.vx=G.vx;
+  blizzardCommon(dt,ctx);
+  let t=simTick('snow');if(t)blizzardSnow(t.dt,t.scroll,ctx);
+  t=simTick('drift');if(t)blizzardDrift(t.dt,t.scroll,ctx);
+  t=simTick('cam');if(t)blizzardCam(t.dt,ctx);
+  t=simTick('spray');if(t)blizzardSpray(t.dt,t.scroll,ctx);
 }
 
 /* ═══════════ управление состоянием ═══════════ */
@@ -200,6 +220,7 @@ function startGame(){
 }
 function restart(){
   $('pauseOv').classList.add('hidden');
+  if(G.state==='running')G.state='menu'; /* R во время заезда — перезапуск */
   startGame();
 }
 function togglePause(){
@@ -318,6 +339,8 @@ function update(dt){
   }
   const scroll=G.speed*dt;
   if(G.state==='running')G.dist+=scroll;
+  simA.terrain+=dt;simA.snow+=dt;simA.drift+=dt;simA.cam+=dt;simA.spray+=dt;
+  simS.snow+=scroll;simS.drift+=scroll;simS.spray+=scroll;
   moveWorld(scroll,dt);
   /* препятствия */
   for(let i=obstacles.length-1;i>=0;i--){
@@ -373,22 +396,27 @@ function update(dt){
     day:dayFactor,speed:G.speed,stage:G.stage,time:G.time,
     grounded:G.grounded,state:G.state,frost,dt
   });
-  /* HUD */
+  /* HUD — 10 Гц, только при изменении */
   if(G.state==='running'||G.state==='crash'){
-    $('speedVal').textContent=Math.round(G.speed*3.6);
-    $('speedBarFill').style.width=Math.min(100,G.speed/36*100)+'%';
-    $('scoreVal').textContent=fmt(G.score);
-    $('bestVal').textContent='РЕКОРД '+fmt(Math.max(best.score,G.score));
-    $('distVal').textContent=fmt(G.dist)+' м';
-    $('stageName').textContent=`ЭТАП ${G.stage} · ${stageName(G.stage)}`;
-    const cb=$('comboBox');
-    if(G.combo>=1){
-      cb.classList.remove('hidden');
-      $('comboMult').textContent='×'+(Math.round(G.mult*10)/10);
-      $('comboCnt').textContent='СЕРИЯ '+G.combo;
-    }else cb.classList.add('hidden');
+    _hudAcc+=dt;
+    if(_hudAcc>=0.1){
+      _hudAcc=0;
+      _hudSet(HUD.speed,'sp',Math.round(G.speed*3.6));
+      const bw=Math.round(Math.min(100,G.speed/36*100));
+      if(_hudLast.bw!==bw){_hudLast.bw=bw;HUD.bar.style.width=bw+'%';}
+      _hudSet(HUD.score,'sc',fmt(G.score));
+      _hudSet(HUD.best,'be','РЕКОРД '+fmt(Math.max(best.score,G.score)));
+      _hudSet(HUD.dist,'di',fmt(G.dist)+' м');
+      _hudSet(HUD.stage,'st',`ЭТАП ${G.stage} · ${stageName(G.stage)}`);
+      if(G.combo>=1){
+        HUD.cb.classList.remove('hidden');
+        _hudSet(HUD.mult,'mu','×'+(Math.round(G.mult*10)/10));
+        _hudSet(HUD.cnt,'cn','СЕРИЯ '+G.combo);
+      }else HUD.cb.classList.add('hidden');
+    }
   }
-  vignetteEl.style.opacity=clamp(0.25+G.speed/34*0.35+(G.state==='crash'?0.2:0),0,0.8);
+  const vg=clamp(0.25+G.speed/34*0.35+(G.state==='crash'?0.2:0),0,0.8).toFixed(2);
+  if(_hudLast.vg!==vg){_hudLast.vg=vg;vignetteEl.style.opacity=vg;}
   if(A.windGain&&A.ctx){
     const t=A.muted?0:(0.04+G.speed/34*0.16);
     A.windGain.gain.value=lerp(A.windGain.gain.value,t,0.1);
@@ -409,12 +437,20 @@ export function boot(){
   reset();
   G.state='menu';
   const clock=new THREE.Clock();
+  let shadowAcc=1;
   function animate(){
     requestAnimationFrame(animate);
     const dt=Math.min(clock.getDelta(),0.05);
     qualityFrame(dt);
     if(G.state!=='paused')update(dt);
     else themeTick(dt);
+    /* каденс теней: 30 Гц в меню, 60 Гц в игре, заморозка в остальном */
+    shadowAcc+=dt;
+    const shHz=G.state==='menu'?30:(G.state==='running'||G.state==='crash')?60:0;
+    if(shHz>0&&shadowAcc>=1/shHz){
+      shadowAcc=0;
+      if(moonLight.castShadow)renderer.shadowMap.needsUpdate=true;
+    }
     if(qualityTier()===0)renderer.render(scene,camera);
     else composer.render();
   }
@@ -422,7 +458,7 @@ export function boot(){
     camera.aspect=innerWidth/innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth,innerHeight);
-    composer.setSize(innerWidth,innerHeight);
+    resizePost(innerWidth,innerHeight);
   });
   addEventListener('pointerdown',()=>{initAudio();if(A.ctx&&A.ctx.state==='suspended')A.ctx.resume();},{once:false});
   qualityInit();

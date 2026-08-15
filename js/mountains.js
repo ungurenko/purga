@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* Ridged alpine silhouettes + layered haze. No scene import (avoids cycles). */
 
@@ -66,6 +67,7 @@ function peakGeo(r,h,segs,seed){
     col[i*3+2]=rockB+(0.98-rockB)*snow;
   }
   geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  geo.deleteAttribute('uv');
   geo.computeVertexNormals();
   return geo;
 }
@@ -111,23 +113,22 @@ function rangeGeo(width,height,depth,cols,seed){
   return geo;
 }
 
-function hazeMat(hex,op){
-  const c=new THREE.Color(hex);
+function hazeMat(){
   return new THREE.ShaderMaterial({
     transparent:true,depthWrite:false,side:THREE.DoubleSide,
     uniforms:{
-      uCol:{value:c},
-      uOp:{value:op},
       uDay:{value:0}
     },
-    vertexShader:`varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    vertexShader:`attribute vec3 aCol;attribute float aOp;
+      varying vec3 vCol;varying float vOp;varying vec2 vUv;
+      void main(){vUv=uv;vCol=aCol;vOp=aOp;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
     fragmentShader:`
-      varying vec2 vUv;uniform vec3 uCol;uniform float uOp;uniform float uDay;
+      varying vec2 vUv;varying vec3 vCol;varying float vOp;uniform float uDay;
       void main(){
         float h=smoothstep(0.0,0.35,vUv.y)*smoothstep(1.0,0.42,vUv.y);
         float side=smoothstep(0.0,0.12,vUv.x)*smoothstep(1.0,0.88,vUv.x);
-        vec3 day=mix(uCol,vec3(0.78,0.86,0.94),uDay);
-        float a=h*side*uOp*(0.55+0.45*(1.0-uDay));
+        vec3 day=mix(vCol,vec3(0.78,0.86,0.94),uDay);
+        float a=h*side*vOp*(0.55+0.45*(1.0-uDay));
         if(a<0.01)discard;
         gl_FragColor=vec4(day,a);
       }`
@@ -140,15 +141,16 @@ export function initMountains(scene){
   if(_ready)return;
   _ready=true;
 
+  const built=[];
   /* far wall of ranges */
   const far=new THREE.Mesh(rangeGeo(720,150,90,56,1.7),mountFarMat);
   far.position.set(0,8,-430);
   far.receiveShadow=false;far.castShadow=false;
-  mountGrp.add(far);
+  built.push(far);
 
   const farB=new THREE.Mesh(rangeGeo(640,110,70,48,4.2),mountFarMat);
   farB.position.set(40,4,-380);
-  mountGrp.add(farB);
+  built.push(farB);
 
   /* mid isolated peaks */
   for(let i=0;i<11;i++){
@@ -159,7 +161,7 @@ export function initMountains(scene){
     m.position.set(side*(80+hash2(i,2.4)*220),h*0.28-10,-(300+hash2(i,5.5)*140));
     m.rotation.y=hash2(i,9.1)*Math.PI*2;
     m.castShadow=false;
-    mountGrp.add(m);
+    built.push(m);
   }
 
   /* nearer foothills — kept wide so they frame, not eat, the slope */
@@ -170,13 +172,30 @@ export function initMountains(scene){
     const side=i%2?-1:1;
     m.position.set(side*(140+hash2(i,4.4)*140),h*0.18-4,-(240+hash2(i,7.7)*80));
     m.rotation.y=hash2(i,3.3)*Math.PI;
-    mountGrp.add(m);
+    built.push(m);
   }
 
   const nearRange=new THREE.Mesh(rangeGeo(520,52,40,40,8.8),mountNearMat);
   nearRange.position.set(-20,-4,-290);
-  mountGrp.add(nearRange);
+  built.push(nearRange);
 
+  /* склейка статики по материалам — горы никогда не двигаются */
+  for(const m of built)m.updateMatrix();
+  const byMat=new Map();
+  for(const m of built){
+    if(!byMat.has(m.material))byMat.set(m.material,[]);
+    byMat.get(m.material).push(m);
+  }
+  for(const [mat,meshes] of byMat){
+    if(meshes.length<2){mountGrp.add(meshes[0]);continue;}
+    const geos=meshes.map(m=>m.geometry.clone().applyMatrix4(m.matrix));
+    const merged=mergeGeometries(geos,false);
+    for(const g of geos)g.dispose();
+    for(const m of meshes)m.geometry.dispose();
+    const mm=new THREE.Mesh(merged,mat);
+    mm.castShadow=false;mm.receiveShadow=false;
+    mountGrp.add(mm);
+  }
   scene.add(mountGrp);
 
   const bands=[
@@ -184,11 +203,25 @@ export function initMountains(scene){
     {z:-280,w:820,h:160,y:18,col:0x121c34,op:0.28},
     {z:-210,w:740,h:110,y:4,col:0x182440,op:0.18}
   ];
-  for(const b of bands){
-    const mat=hazeMat(b.col,b.op);
-    hazeMats.push(mat);
-    const pl=new THREE.Mesh(new THREE.PlaneGeometry(b.w,b.h),mat);
-    pl.position.set(0,b.y,b.z);
+  /* одна геометрия: цвет и прозрачность запечены в атрибуты */
+  const hazeMatInst=hazeMat();
+  hazeMats.push(hazeMatInst);
+  {
+    const geos=[];
+    for(const b of bands){
+      const g=new THREE.PlaneGeometry(b.w,b.h);
+      g.translate(0,b.y,b.z);
+      const cc=new THREE.Color(b.col);
+      const n=g.attributes.position.count;
+      g.setAttribute('aCol',new THREE.BufferAttribute(new Float32Array(n*3),3));
+      g.setAttribute('aOp',new THREE.BufferAttribute(new Float32Array(n),1));
+      const ac=g.attributes.aCol.array,ao=g.attributes.aOp.array;
+      for(let i=0;i<n;i++){ac[i*3]=cc.r;ac[i*3+1]=cc.g;ac[i*3+2]=cc.b;ao[i]=b.op;}
+      geos.push(g);
+    }
+    const merged=mergeGeometries(geos,false);
+    for(const g of geos)g.dispose();
+    const pl=new THREE.Mesh(merged,hazeMatInst);
     pl.renderOrder=-2;
     hazeGrp.add(pl);
   }

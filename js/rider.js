@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { clamp, lerp } from './utils.js';
 import { G } from './state.js';
-import { scene, terrainHeight, terrainSlope } from './scene.js';
+import { scene, terrainHeight, terrainSlope, terrainMeshY } from './scene.js';
 import { K } from './input.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* ═══════════ сноубордист ═══════════ */
 const jacketMat=new THREE.MeshStandardMaterial({color:0x27435e,roughness:0.8,metalness:0.05});
@@ -37,6 +38,7 @@ const RING_GEO=new THREE.TorusGeometry(1,1,8,18);
 const riderG=new THREE.Group();riderG.rotation.order='YXZ';scene.add(riderG);
 /* ───── доска с боковым вырезом, кантами и графикой ───── */
 const boardG=new THREE.Group();riderG.add(boardG);
+const _boardParts={};
 {
   const d=new THREE.Shape();
   d.moveTo(-0.155,-0.70);
@@ -50,22 +52,31 @@ const boardG=new THREE.Group();riderG.add(boardG);
   geo.rotateX(-Math.PI/2);
   const deck=new THREE.Mesh(geo,boardTopMat);deck.position.y=0.045;boardG.add(deck);
   const base=box(0.30,0.012,1.44,boardBaseMat);base.position.y=0.012;boardG.add(base);
+  const rails=[];
   for(const s of[-1,1]){
     const rail=box(0.012,0.05,1.52,metalMat);
     rail.position.set(s*0.158,0.045,0);boardG.add(rail);
+    rails.push(rail);
   }
   const stripeA=box(0.22,0.012,1.40,boardTopMat.clone());
   stripeA.material.emissiveIntensity=0.6;stripeA.material.color.set(0x6a3018);
   stripeA.position.y=0.064;boardG.add(stripeA);
+  const dots=[];
   for(const z of[-0.55,0,0.55]){
     const dot=box(0.10,0.014,0.06,accentMat);dot.position.set(0,0.064,z);boardG.add(dot);
+    dots.push(dot);
   }
+  const tips=[],tipBases=[];
   for(const s of[-1,1]){
     const tip=box(0.30,0.032,0.22,boardTopMat);
     tip.position.set(0,0.058,s*0.63);tip.rotation.x=-s*0.5;boardG.add(tip);
+    tips.push(tip);
     const tipBase=box(0.26,0.010,0.20,boardBaseMat);
     tipBase.position.set(0,0.041,s*0.63);tipBase.rotation.x=-s*0.5;boardG.add(tipBase);
+    tipBases.push(tipBase);
   }
+  _boardParts.deck=deck;_boardParts.base=base;_boardParts.rails=rails;
+  _boardParts.dots=dots;_boardParts.tips=tips;_boardParts.tipBases=tipBases;
 }
 /* ───── крепления и ботинки на доске ───── */
 const bindings=[];
@@ -147,9 +158,11 @@ jacketInner.scale.set(0.95,1.0,0.70);jacketInner.position.y=0.005;torso.add(jack
 const hem=box(0.42,0.04,0.28,jacketMat);hem.position.set(0,0.005,0);torso.add(hem);
 const hemBand=box(0.40,0.012,0.27,seamMat);hemBand.position.set(0,0.020,0);torso.add(hemBand);
 const backSeam=box(0.024,0.42,0.018,seamMat);backSeam.position.set(0,0.21,0.152);torso.add(backSeam);
+const studs=[];
 for(let i=0;i<3;i++){
   const st=new THREE.Mesh(new THREE.SphereGeometry(0.013,8,6),seamMat);
   st.position.set(0,0.08+i*0.10,0.166);torso.add(st);
+  studs.push(st);
 }
 const hood=box(0.34,0.20,0.20,jacketMat);hood.position.set(0,0.48,0.10);torso.add(hood);
 const hoodInner=new THREE.Mesh(new THREE.SphereGeometry(0.16,14,10),innerMat);
@@ -164,8 +177,10 @@ shoulderLPad.scale.set(1.05,0.7,0.85);shoulderLPad.position.set(-0.235,0.46,0);t
 const shoulderRPad=shoulderLPad.clone();shoulderRPad.position.x=0.235;torso.add(shoulderRPad);
 const logoBack=box(0.10,0.10,0.018,logoMat);logoBack.position.set(0,0.30,0.155);torso.add(logoBack);
 const logoBackInner=box(0.058,0.058,0.022,seamMat);logoBackInner.position.set(0,0.30,0.158);torso.add(logoBackInner);
+const vStripes=[];
 for(const sx of[-0.032,0.032]){
   const v=box(0.014,0.058,0.02,accentMat);v.position.set(sx,0.30,0.16);torso.add(v);
+  vStripes.push(v);
 }
 const armLGroup=new THREE.Group();armLGroup.position.set(-0.225,0.44,0);torso.add(armLGroup);
 const armRGroup=new THREE.Group();armRGroup.position.set(0.225,0.44,0);torso.add(armRGroup);
@@ -203,12 +218,14 @@ const helmetBack=new THREE.Mesh(new THREE.SphereGeometry(0.158,14,10,0,Math.PI*2
 helmetBack.position.set(0,0.012,0.012);headG.add(helmetBack);
 const helmetBrim=box(0.30,0.018,0.10,helmetMat);
 helmetBrim.position.set(0,0.045,-0.140);helmetBrim.rotation.x=-0.18;headG.add(helmetBrim);
+const helmetVents=[];
 for(let i=0;i<3;i++){
   const yoff=0.05-i*0.035;
   const vent=box(0.034,0.092,0.020,seamMat);
   vent.position.set(0,yoff,Math.sqrt(0.158*0.158-yoff*yoff)+0.005);
   vent.rotation.x=-Math.atan2(yoff,vent.position.z);
   headG.add(vent);
+  helmetVents.push(vent);
 }
 const strapBack=box(0.36,0.058,0.034,accentMat);
 strapBack.position.set(0,-0.018,0.155);headG.add(strapBack);
@@ -216,9 +233,11 @@ const strapFront=box(0.36,0.058,0.034,accentMat);
 strapFront.position.set(0,-0.018,-0.155);headG.add(strapFront);
 const strapBuckle=box(0.04,0.06,0.025,metalMat);
 strapBuckle.position.set(0,-0.018,0.178);headG.add(strapBuckle);
+const headStripes=[];
 for(const sx of[-0.05,0.05]){
   const stripe=box(0.012,0.085,0.022,accentMat);
   stripe.position.set(sx,0.04,0.150);headG.add(stripe);
+  headStripes.push(stripe);
 }
 const goggleFront=new THREE.Mesh(new THREE.TorusGeometry(0.14,0.025,8,18,Math.PI*0.7),accentMat);
 goggleFront.rotation.x=-Math.PI/2;goggleFront.position.set(0,-0.018,-0.155);headG.add(goggleFront);
@@ -275,7 +294,55 @@ let breathCursor=0;
 let breathAcc=0;
 const goggleBase=goggleLens.material;
 
+/* ═══════════ склейка статичных деталей: меньше draw calls ═══════════ */
+{
+  const _inv=new THREE.Matrix4(),_m=new THREE.Matrix4();
+  function mergeStatic(grp,mat,list){
+    if(list.length<2)return;
+    riderG.updateMatrixWorld(true);
+    _inv.copy(grp.matrixWorld).invert();
+    const geos=[];
+    for(const mesh of list){
+      let g=mesh.geometry.clone().applyMatrix4(_m.multiplyMatrices(_inv,mesh.matrixWorld));
+      if(g.index)g=g.toNonIndexed();
+      geos.push(g);
+      mesh.parent.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    const merged=mergeGeometries(geos,false);
+    for(const g of geos)g.dispose();
+    grp.add(new THREE.Mesh(merged,mat));
+  }
+  mergeStatic(boardG,boardTopMat,[_boardParts.deck,..._boardParts.tips]);
+  mergeStatic(boardG,boardBaseMat,[_boardParts.base,..._boardParts.tipBases]);
+  mergeStatic(boardG,metalMat,_boardParts.rails);
+  mergeStatic(boardG,accentMat,_boardParts.dots);
+  mergeStatic(torso,jacketMat,[jacket,hem,hood,hoodRim,collarRim,shoulderLPad,shoulderRPad]);
+  mergeStatic(torso,innerMat,[jacketInner,hoodInner,collar,neckBalaclava]);
+  mergeStatic(torso,seamMat,[hemBand,backSeam,...studs,logoBackInner]);
+  mergeStatic(torso,accentMat,[hoodDraw,hoodDrawTip,...vStripes]);
+  mergeStatic(torso,rimeMat,[patchShoulderL,patchShoulderR,patchHood]);
+  mergeStatic(torso,logoMat,[logoBack]);
+  mergeStatic(armLGroup,jacketMat,[armLUpper,armLElbow]);
+  mergeStatic(armLElbowGrp,jacketMat,[armLFore]);
+  mergeStatic(armLElbowGrp,innerMat,[armLForeCuff]);
+  mergeStatic(armLElbowGrp,gloveMat,[armLGlove,armLGloveCuff]);
+  mergeStatic(armRGroup,jacketMat,[armRUpper,armRElbow]);
+  mergeStatic(armRElbowGrp,jacketMat,[armRFore]);
+  mergeStatic(armRElbowGrp,innerMat,[armRForeCuff]);
+  mergeStatic(armRElbowGrp,gloveMat,[armRGlove,armRGloveCuff]);
+  mergeStatic(headG,helmetMat,[helmet,helmetBack,helmetBrim]);
+  mergeStatic(headG,seamMat,helmetVents);
+  mergeStatic(headG,accentMat,[strapBack,strapFront,...headStripes,goggleFront]);
+  mergeStatic(headG,metalMat,[strapBuckle]);
+  mergeStatic(headG,skinMat,[skull,skullBack]);
+  mergeStatic(ponyG,hairMat,[ponySeg1,ponySeg2,ponySeg3,ponySeg4]);
+}
+
 /* ═══════════ поза и анимация райдера ═══════════ */
+const _ikH=new THREE.Vector3(),_ikMid=new THREE.Vector3(),_ikK=new THREE.Vector3(),
+      _ikTD=new THREE.Vector3(),_ikAD=new THREE.Vector3(),_ikQT=new THREE.Quaternion(),
+      _ikQW=new THREE.Quaternion(),_ikQL=new THREE.Quaternion(),_ikUp=new THREE.Vector3(0,-1,0);
 function riderPose(dt){
   const air=!G.grounded;
   const tuck=G.grounded&&K.up;
@@ -293,17 +360,17 @@ function riderPose(dt){
   const L_FOOT=footTargets[0],R_FOOT=footTargets[1];
   const carve=clamp(G.vx*0.06,-0.6,0.6);
   function applyLeg(leg,foot){
-    const H=new THREE.Vector3(leg.side*0.11,curHipY,0);
-    const mid=new THREE.Vector3().addVectors(H,foot).multiplyScalar(0.5);
-    const K=new THREE.Vector3(mid.x+leg.side*outBulge,mid.y,mid.z-fwdBulge);
-    const thighDir=new THREE.Vector3().subVectors(K,H).normalize();
-    const qThigh=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,-1,0),thighDir);
-    const ankleDir=new THREE.Vector3().subVectors(foot,K).normalize();
-    const qShinWorld=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,-1,0),ankleDir);
-    const qShinLocal=qThigh.clone().invert().multiply(qShinWorld);
-    leg.thigh.quaternion.copy(qThigh);
-    leg.shin.quaternion.copy(qShinLocal);
-    leg.knee.position.set(K.x,K.y,K.z);
+    _ikH.set(leg.side*0.11,curHipY,0);
+    _ikMid.addVectors(_ikH,foot).multiplyScalar(0.5);
+    _ikK.set(_ikMid.x+leg.side*outBulge,_ikMid.y,_ikMid.z-fwdBulge);
+    _ikTD.subVectors(_ikK,_ikH).normalize();
+    _ikQT.setFromUnitVectors(_ikUp,_ikTD);
+    _ikAD.subVectors(foot,_ikK).normalize();
+    _ikQW.setFromUnitVectors(_ikUp,_ikAD);
+    _ikQL.copy(_ikQT).invert().multiply(_ikQW);
+    leg.thigh.quaternion.copy(_ikQT);
+    leg.shin.quaternion.copy(_ikQL);
+    leg.knee.position.set(_ikK.x,_ikK.y,_ikK.z);
   }
   applyLeg(legL,L_FOOT);
   applyLeg(legR,R_FOOT);
@@ -367,15 +434,17 @@ function riderPose(dt){
     riderG.rotation.x=lerp(riderG.rotation.x,pitchT,Math.min(1,10*dt));
     riderG.rotation.y=G.boardYaw+(air?G.spinAngle*Math.PI/180:G.visualSpin*Math.PI/180);
     riderG.rotation.z=G.roll;
-    riderG.position.set(G.x,G.y,0);
+    /* визуально доска стоит на нарисованном снегу (сетка может отставать от физики) */
+    riderG.position.set(G.x,G.grounded?terrainMeshY(G.x,0):G.y,0);
   }
-  blob.position.set(G.x,groundY+0.02,0);
+  blob.position.set(G.x,(G.grounded?terrainMeshY(G.x,0):groundY)+0.02,0);
   const bsc=clamp(1-Math.max(0,G.py)*0.28,0.3,1);
   blob.scale.set(bsc,bsc,1);
   blob.material.opacity=0.12*bsc;
   G.landAbsorb=Math.max(0,G.landAbsorb-dt*1.6);
 }
 
+const _goggleCol=new THREE.Color(0xc8daf0);
 export function riderWeather(ctx){
   const day=ctx.day??0;
   const frost=clamp(ctx.frost??0,0,1);
@@ -385,7 +454,7 @@ export function riderWeather(ctx){
   const acc=clamp(frost*0.85+clamp(speed/36,0,1)*0.25,0,1)*night;
   rimeMat.opacity=acc*0.82;
   helmetRime.material.opacity=acc*0.55;
-  goggleBase.color.setHex(0x223040).lerp(new THREE.Color(0xc8daf0),frost*0.72);
+  goggleBase.color.setHex(0x223040).lerp(_goggleCol,frost*0.72);
   goggleBase.roughness=0.18+frost*0.62;
   goggleBase.emissiveIntensity=(0.4+frost*0.55)*mixDay(0.9,0.35,day);
   goggleBase.opacity=1;

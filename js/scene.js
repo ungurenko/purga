@@ -13,6 +13,8 @@ renderer.toneMappingExposure=1.15;
 renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+/* тени обновляются по каденсу из game.js (30/60 Гц, заморозка на паузе) */
+renderer.shadowMap.autoUpdate=false;
 $('app').appendChild(renderer.domElement);
 const scene=new THREE.Scene();
 scene.fog=new THREE.FogExp2(0x131a30,0.015);
@@ -166,7 +168,6 @@ groundTex.repeat.set(14,42);
 const TILE_LEN=340/42;
 /* широкий freeride-склон (без коридора) */
 const GROUND_W=180,GROUND_L=340,GROUND_Z=-130;
-const GROUND_SEG_X=72,GROUND_SEG_Z=110;
 /* ═══════════ noise-рельеф: хребты + чаши + горки-трамплины ═══════════ */
 function hash2(ix,iz){
   const n=Math.sin(ix*127.1+iz*311.7)*43758.5453123;
@@ -269,14 +270,48 @@ function terrainSlope(x,courseZ,e=0.7){
   const dhds=(terrainHeight(x,courseZ+e)-terrainHeight(x,courseZ-e))/(2*e);
   return{h,dhdx,dhds};
 }
-const groundGeo=new THREE.PlaneGeometry(GROUND_W,GROUND_L,GROUND_SEG_X,GROUND_SEG_Z);
-const groundBase=new Float32Array(groundGeo.attributes.position.array); /* lx, ly, 0 */
+/* адаптивная сетка: плотно у игрока, реже вдали (там всё в тумане) */
+const GROUND_SEG_X=64;
+const GROUND_NEAR_DZ=3.09;
+const groundRows=[];
 {
-  const n=groundGeo.attributes.position.count;
+  let ly=-GROUND_L/2;
+  while(ly<=20.0001){groundRows.push(ly);ly+=GROUND_NEAR_DZ;}
+  let dz=4;
+  while(ly<GROUND_L/2-0.0001){groundRows.push(ly);dz=Math.min(16,dz*1.15);ly+=dz;}
+}
+const GROUND_COLS=GROUND_SEG_X+1;
+function buildGroundGeo(){
+  const n=groundRows.length*GROUND_COLS;
+  const pos=new Float32Array(n*3);
+  let k=0;
+  for(let r=0;r<groundRows.length;r++){
+    const y=groundRows[r];
+    for(let c=0;c<GROUND_COLS;c++){
+      pos[k]=-GROUND_W/2+GROUND_W*c/GROUND_SEG_X;
+      pos[k+1]=y;
+      pos[k+2]=0;
+      k+=3;
+    }
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('normal',new THREE.BufferAttribute(new Float32Array(n*3),3).setUsage(THREE.DynamicDrawUsage));
   const colAttr=new THREE.BufferAttribute(new Float32Array(n*3).fill(1),3);
   colAttr.setUsage(THREE.DynamicDrawUsage);
-  groundGeo.setAttribute('color',colAttr);
+  geo.setAttribute('color',colAttr);
+  const idx=[];
+  for(let r=0;r<groundRows.length-1;r++){
+    for(let c=0;c<GROUND_SEG_X;c++){
+      const a=r*GROUND_COLS+c,b=a+1,d=a+GROUND_COLS,e=d+1;
+      idx.push(a,d,b,b,d,e);
+    }
+  }
+  geo.setIndex(idx);
+  return geo;
 }
+const groundGeo=buildGroundGeo();
+const groundBase=new Float32Array(groundGeo.attributes.position.array); /* lx, ly, 0 */
 /* living snow: world-space ridges, packed/ice by slope, wrap light, sparkle */
 export const sparkleU={value:0};
 export const snowU={day:{value:0},sparkle:{value:1},wind:{value:0}};
@@ -372,38 +407,57 @@ ground.receiveShadow=true;
 ground.geometry.computeVertexNormals();
 scene.add(ground);
 let _terrainNormFrame=0;
+let _terrainLastDist=NaN;
+/**
+ * Высота поверхности, которую реально рисует сетка (сетка отстаёт от физики
+ * на один тик). Визуальные объекты (райдер, лыжня, фонари, деревья) должны
+ * вставать сюда, иначе они проваливаются под нарисованный снег.
+ */
+export function terrainMeshY(x,worldZ){
+  return terrainHeight(x,_terrainLastDist-worldZ);
+}
 function updateTerrain(dist){
+  if(dist===_terrainLastDist)return;
+  _terrainLastDist=dist;
   const pos=groundGeo.attributes.position.array;
-  const n=pos.length/3;
-  for(let i=0;i<n;i++){
-    const i3=i*3;
-    const lx=groundBase[i3],ly=groundBase[i3+1];
-    /* после rot.x=-π/2: world=(lx, localZ, -ly+GROUND_Z); course=dist-worldZ */
-    const worldZ=-ly+GROUND_Z;
-    const h=terrainHeight(lx,dist-worldZ);
-    pos[i3]=lx;pos[i3+1]=ly;pos[i3+2]=h;
+  const nor=groundGeo.attributes.normal.array;
+  const col=groundGeo.attributes.color.array;
+  const rows=groundRows.length;
+  const dx=GROUND_W/GROUND_SEG_X;
+  /* проход 1: все высоты текущего тика */
+  for(let r=0;r<rows;r++){
+    const ly=groundRows[r];
+    const course=dist-(GROUND_Z-ly);
+    const rbase=r*GROUND_COLS;
+    for(let c=0;c<GROUND_COLS;c++){
+      const i3=(rbase+c)*3;
+      pos[i3+2]=terrainHeight(groundBase[i3],course);
+    }
   }
-  groundGeo.attributes.position.needsUpdate=true;
-  /* normals + окраска по уклону реже — mesh плотный; первый кадр обязательно */
-  if((++_terrainNormFrame&1)===0||_terrainNormFrame===1){
-    groundGeo.computeVertexNormals();
-    const col=groundGeo.attributes.color.array;
-    const cols=GROUND_SEG_X+1;
-    const dx=GROUND_W/GROUND_SEG_X,dz=GROUND_L/GROUND_SEG_Z;
-    for(let i=0;i<n;i++){
-      const i3=i*3;
-      const c=i%cols,r=(i-c)/cols;
-      const left=c>0?pos[i3-1]:pos[i3+2];
-      const right=c<GROUND_SEG_X?pos[i3+5]:pos[i3+2];
-      const up=r>0?pos[i3-cols*3+2]:pos[i3+2];
-      const down=r<GROUND_SEG_Z?pos[i3+cols*3+2]:pos[i3+2];
-      const sx=(right-left)/(2*dx),sz=(up-down)/(2*dz);
+  /* проход 2: наклоны/нормали/цвета по свежим высотам */
+  for(let r=0;r<rows;r++){
+    const ly=groundRows[r];
+    const rbase=r*GROUND_COLS;
+    const upR=r>0?r-1:r+1;
+    const dnR=r<rows-1?r+1:r-1;
+    const dzy=r<rows-1?groundRows[r+1]-ly:ly-groundRows[r-1];
+    for(let c=0;c<GROUND_COLS;c++){
+      const i=rbase+c,i3=i*3;
+      const cL=c>0?c-1:c+1,cR=c<GROUND_SEG_X?c+1:c-1;
+      const sx=(pos[(rbase+cR)*3+2]-pos[(rbase+cL)*3+2])/((cR-cL)*dx);
+      const sz=(pos[(upR*GROUND_COLS+c)*3+2]-pos[(dnR*GROUND_COLS+c)*3+2])/((dnR-upR)*dzy);
       const s=Math.sqrt(sx*sx+sz*sz);
       const t=Math.min(1,Math.max(0,(s-0.28)/0.85));
       col[i3]=1-0.22*t;col[i3+1]=1-0.16*t;col[i3+2]=1-0.04*t;
+      /* аналитическая нормаль: local (-sx, sz, 1) → world (-sx, 1, -sz) */
+      const il=1/Math.sqrt(sx*sx+sz*sz+1);
+      nor[i3]=-sx*il;nor[i3+1]=il;nor[i3+2]=-sz*il;
     }
-    groundGeo.attributes.color.needsUpdate=true;
   }
+  groundGeo.attributes.position.needsUpdate=true;
+  groundGeo.attributes.normal.needsUpdate=true;
+  groundGeo.attributes.color.needsUpdate=true;
+  groundGeo.computeBoundingSphere();
 }
 /* bankMat оставлен для фонарей/декора; снежных валов-коридоров больше нет */
 const bankMat=new THREE.MeshStandardMaterial({color:0xe6ecf8,roughness:1});
@@ -468,7 +522,7 @@ function forestUpdate(dist,scroll,time){
     const f=forestData[i];
     f.z+=scroll;
     if(f.z>26){f.z-=330;f.x=pickForestX();f.s=rand(1.5,3.4);f.sy=rand(0.9,1.15);f.ry=rand(6.28);}
-    _firDummy.position.set(f.x,terrainHeight(f.x,dist-f.z)-0.2,f.z);
+    _firDummy.position.set(f.x,terrainMeshY(f.x,f.z)-0.2,f.z);
     _firDummy.rotation.set(Math.sin(time*0.7+f.ph)*0.012,f.ry,Math.cos(time*0.6+f.ph)*0.012);
     _firDummy.scale.set(f.s,f.s*f.sy,f.s);
     _firDummy.updateMatrix();
@@ -481,6 +535,7 @@ function forestUpdate(dist,scroll,time){
 function placeOnTerrain(obj,x,z,yOff=0,dist=0){
   obj.position.set(x,terrainHeight(x,dist-z)+yOff,z);
 }
+/* место для будущих декоров */
 /* ═══════════ фонари вдоль трассы ═══════════ */
 function radialTex(inner,outer){
   const c=document.createElement('canvas');c.width=c.height=128;
@@ -495,22 +550,61 @@ const poleMat=new THREE.MeshStandardMaterial({color:0x1d222b,roughness:0.9});
 const lampMat=new THREE.MeshStandardMaterial({color:0xffb050,emissive:0xff8a2a,emissiveIntensity:1.6,roughness:0.5});
 const lampGeo=new THREE.BoxGeometry(0.34,0.4,0.34);
 const poleGeo=new THREE.CylinderGeometry(0.07,0.09,2.7,6);
-/* редкие одиночные маркеры (не парный коридор) */
+const capGeo=new THREE.ConeGeometry(0.3,0.2,4);
+/* редкие одиночные маркеры (не парный коридор) — instanced */
 const lanterns=[];
 const LANT_N=8,LANT_SP=62;
+const lanternPoles=new THREE.InstancedMesh(poleGeo,poleMat,LANT_N);
+const lanternLamps=new THREE.InstancedMesh(lampGeo,lampMat,LANT_N);
+const lanternCaps=new THREE.InstancedMesh(capGeo,bankMat,LANT_N);
+lanternPoles.castShadow=true;
+lanternLamps.castShadow=true;
+lanternPoles.frustumCulled=false;
+lanternLamps.frustumCulled=false;
+lanternCaps.frustumCulled=false;
+scene.add(lanternPoles);
+scene.add(lanternLamps);
+scene.add(lanternCaps);
+const lanternSprites=[];
 for(let i=0;i<LANT_N;i++){
-  const g=new THREE.Group();
-  const p=new THREE.Mesh(poleGeo,poleMat);p.position.y=1.35;p.castShadow=true;g.add(p);
-  const l=new THREE.Mesh(lampGeo,lampMat);l.position.y=2.75;l.castShadow=true;g.add(l);
-  const cap=new THREE.Mesh(new THREE.ConeGeometry(0.3,0.2,4),bankMat);cap.position.y=3.05;cap.rotation.y=Math.PI/4;g.add(cap);
-  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffa64d,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0.5}));
-  sp.position.y=2.75;sp.scale.set(2.4,2.4,1);g.add(sp);
   const side=i%2?1:-1;
   const lx=side*rand(6,28)+(Math.random()-0.5)*4;
   const lz=10-i*LANT_SP;
-  placeOnTerrain(g,lx,lz,0,0);
-  scene.add(g);
-  lanterns.push({g,sp,phase:rand(6.28),x:lx});
+  lanterns.push({x:lx,z:lz,y:0,phase:rand(6.28)});
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:0xffa64d,blending:THREE.AdditiveBlending,depthWrite:false,transparent:true,opacity:0.5}));
+  sp.scale.set(2.4,2.4,1);
+  scene.add(sp);
+  lanternSprites.push(sp);
+}
+const _lanternDummy=new THREE.Object3D();
+function lanternUpdate(dist,scroll,time,glowBase){
+  for(let i=0;i<LANT_N;i++){
+    const l=lanterns[i];
+    l.z+=scroll;
+    if(l.z>14){
+      l.z-=LANT_N*LANT_SP;
+      l.x=(Math.random()<0.5?-1:1)*rand(5,32);
+    }
+    const y=terrainMeshY(l.x,l.z);
+    l.y=y;
+    _lanternDummy.position.set(l.x,y+1.35,l.z);
+    _lanternDummy.rotation.set(0,0,0);
+    _lanternDummy.updateMatrix();
+    lanternPoles.setMatrixAt(i,_lanternDummy.matrix);
+    _lanternDummy.position.y=y+2.75;
+    _lanternDummy.updateMatrix();
+    lanternLamps.setMatrixAt(i,_lanternDummy.matrix);
+    _lanternDummy.position.y=y+3.05;
+    _lanternDummy.rotation.y=Math.PI/4;
+    _lanternDummy.updateMatrix();
+    lanternCaps.setMatrixAt(i,_lanternDummy.matrix);
+    const sp=lanternSprites[i];
+    sp.position.set(l.x,y+2.75,l.z);
+    sp.material.opacity=glowBase*(0.84+0.32*Math.sin(time*7+l.phase));
+  }
+  lanternPoles.instanceMatrix.needsUpdate=true;
+  lanternLamps.instanceMatrix.needsUpdate=true;
+  lanternCaps.instanceMatrix.needsUpdate=true;
 }
 /* ═══════════ клякса-тень под райдером (ложится на склон) ═══════════ */
 const blobShadow=new THREE.Mesh(
@@ -522,7 +616,7 @@ blobShadow.rotation.x=-Math.PI/2;
 blobShadow.renderOrder=2;
 scene.add(blobShadow);
 function blobShadowUpdate(x,dist,airH,slope){
-  const y=terrainHeight(x,dist)+0.04;
+  const y=terrainMeshY(x,0)+0.04;
   blobShadow.position.set(x,y,0);
   blobShadow.material.opacity=Math.max(0,0.40-airH*0.07);
   const sc=1+Math.min(airH*0.12,0.9);
@@ -589,7 +683,7 @@ function trailUpdate(dist,scroll,dt){
       trailFade[i*3]=0;trailFade[i*3+1]=0;trailFade[i*3+2]=0;
       continue;
     }
-    const y=terrainHeight(p.x,dist-p.z);
+    const y=terrainMeshY(p.x,p.z);
     const w=0.36;
     trailPos[i9]=p.x-w;trailPos[i9+1]=y+0.055;trailPos[i9+2]=p.z;
     trailPos[i9+3]=p.x;  trailPos[i9+4]=y+0.018;trailPos[i9+5]=p.z;
@@ -610,23 +704,31 @@ function trailReset(){
   trailGeo.attributes.position.needsUpdate=true;
   trailGeo.attributes.aFade.needsUpdate=true;
 }
+const _lampRank=[-1,-1,-1];
+const _lampRankZ=[1e9,1e9,1e9];
 function lanternLightsUpdate(day,enabled){
   if(!enabled){
     for(const pl of lampLights)pl.intensity=0;
     return;
   }
-  const ranked=lanterns
-    .map(l=>({l,z:l.g.position.z}))
-    .filter(o=>o.z<10&&o.z>-40)
-    .sort((a,b)=>Math.abs(a.z)-Math.abs(b.z));
+  _lampRank[0]=_lampRank[1]=_lampRank[2]=-1;
+  _lampRankZ[0]=_lampRankZ[1]=_lampRankZ[2]=1e9;
+  for(let i=0;i<LANT_N;i++){
+    const z=lanterns[i].z;
+    if(!(z<10&&z>-40))continue;
+    const az=Math.abs(z);
+    if(az<_lampRankZ[0]){_lampRankZ[2]=_lampRankZ[1];_lampRank[2]=_lampRank[1];_lampRankZ[1]=_lampRankZ[0];_lampRank[1]=_lampRank[0];_lampRankZ[0]=az;_lampRank[0]=i;}
+    else if(az<_lampRankZ[1]){_lampRankZ[2]=_lampRankZ[1];_lampRank[2]=_lampRank[1];_lampRankZ[1]=az;_lampRank[1]=i;}
+    else if(az<_lampRankZ[2]){_lampRankZ[2]=az;_lampRank[2]=i;}
+  }
   const base=8*(1-day);
   for(let i=0;i<LAMP_LIGHT_N;i++){
     const pl=lampLights[i];
-    const hit=ranked[i];
-    if(!hit){pl.intensity=0;continue;}
-    const g=hit.l.g;
-    pl.position.set(g.position.x,g.position.y+2.7,g.position.z);
-    pl.intensity=base*(0.7+0.3*Math.sin(performance.now()*0.006+hit.l.phase));
+    const idx=_lampRank[i];
+    if(idx<0){pl.intensity=0;continue;}
+    const l=lanterns[idx];
+    pl.position.set(l.x,l.y+2.7,l.z);
+    pl.intensity=base*(0.7+0.3*Math.sin(performance.now()*0.006+l.phase));
     pl.distance=18;
   }
 }
@@ -640,6 +742,6 @@ export {
   GROUND_W, GROUND_L,
   mountGrp, mountFarMat, mountNearMat, mountMidMat, mountainsUpdate,
   forestMat1, forestMat2, forestUpdate,
-  lanterns, LANT_N, LANT_SP, lampMat, lanternLightsUpdate,
+  lanterns, LANT_N, LANT_SP, lampMat, lanternUpdate, lanternLightsUpdate,
   blobShadow, blobShadowUpdate, trailEmit, trailUpdate, trailReset
 };
