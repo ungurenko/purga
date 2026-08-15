@@ -239,8 +239,41 @@ for(let i=0;i<5;i++){
 }
 const scarfBase=box(0.16,0.05,0.04,scarfMat);scarfBase.position.set(0,0.43,0.10);torso.add(scarfBase);
 const blob=new THREE.Mesh(new THREE.CircleGeometry(0.85,20),
-  new THREE.MeshBasicMaterial({color:0x060a18,transparent:true,opacity:0.34,depthWrite:false}));
+  new THREE.MeshBasicMaterial({color:0x060a18,transparent:true,opacity:0.14,depthWrite:false}));
 blob.rotation.x=-Math.PI/2;scene.add(blob);
+
+const rimeMat=new THREE.MeshStandardMaterial({color:0xe8f0ff,roughness:1,transparent:true,opacity:0,depthWrite:false});
+const snowPatch=(sx,sy,sz)=>{
+  const m=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),rimeMat);
+  m.scale.set(sx,sy,sz);
+  return m;
+};
+const patchShoulderL=snowPatch(0.10,0.04,0.08);patchShoulderL.position.set(-0.22,0.50,0.02);torso.add(patchShoulderL);
+const patchShoulderR=snowPatch(0.10,0.04,0.08);patchShoulderR.position.set(0.22,0.50,0.02);torso.add(patchShoulderR);
+const patchHood=snowPatch(0.14,0.035,0.10);patchHood.position.set(0,0.56,0.08);torso.add(patchHood);
+const patchBoard=snowPatch(0.12,0.02,0.28);patchBoard.position.set(0,0.072,0.05);boardG.add(patchBoard);
+const helmetRime=new THREE.Mesh(
+  new THREE.SphereGeometry(0.168,16,12,0,Math.PI*2,0,Math.PI*0.55),
+  new THREE.MeshStandardMaterial({color:0xdce8f8,roughness:0.85,transparent:true,opacity:0,depthWrite:false})
+);
+helmetRime.position.y=0.02;headG.add(helmetRime);
+
+const BREATH_N=28;
+const breathPos=new Float32Array(BREATH_N*3);
+const breathLife=new Float32Array(BREATH_N);
+const breathSeed=new Float32Array(BREATH_N);
+for(let i=0;i<BREATH_N;i++){breathPos[i*3+1]=-10;breathLife[i]=0;breathSeed[i]=Math.random();}
+const breathGeo=new THREE.BufferGeometry();
+breathGeo.setAttribute('position',new THREE.BufferAttribute(breathPos,3).setUsage(THREE.DynamicDrawUsage));
+const breathMat=new THREE.PointsMaterial({
+  color:0xdce8ff,size:0.08,transparent:true,opacity:0.45,depthWrite:false,sizeAttenuation:true
+});
+const breath=new THREE.Points(breathGeo,breathMat);
+breath.frustumCulled=false;
+headG.add(breath);
+let breathCursor=0;
+let breathAcc=0;
+const goggleBase=goggleLens.material;
 
 /* ═══════════ поза и анимация райдера ═══════════ */
 function riderPose(dt){
@@ -339,9 +372,50 @@ function riderPose(dt){
   blob.position.set(G.x,groundY+0.02,0);
   const bsc=clamp(1-Math.max(0,G.py)*0.28,0.3,1);
   blob.scale.set(bsc,bsc,1);
-  blob.material.opacity=0.34*bsc;
+  blob.material.opacity=0.12*bsc;
   G.landAbsorb=Math.max(0,G.landAbsorb-dt*1.6);
 }
+
+export function riderWeather(ctx){
+  const day=ctx.day??0;
+  const frost=clamp(ctx.frost??0,0,1);
+  const speed=ctx.speed??0;
+  const time=ctx.time??0;
+  const night=1-day;
+  const acc=clamp(frost*0.85+clamp(speed/36,0,1)*0.25,0,1)*night;
+  rimeMat.opacity=acc*0.82;
+  helmetRime.material.opacity=acc*0.55;
+  goggleBase.color.setHex(0x223040).lerp(new THREE.Color(0xc8daf0),frost*0.72);
+  goggleBase.roughness=0.18+frost*0.62;
+  goggleBase.emissiveIntensity=(0.4+frost*0.55)*mixDay(0.9,0.35,day);
+  goggleBase.opacity=1;
+  /* breath: night, slow or menu */
+  const wantBreath=night>0.45&&(ctx.state==='menu'||speed<16);
+  breath.visible=wantBreath;
+  const dt=ctx.dt||0.016;
+  breathAcc+=dt;
+  if(wantBreath&&breathAcc>0.55){
+    breathAcc=0;
+    for(let k=0;k<4;k++){
+      const i=breathCursor++%BREATH_N;
+      breathPos[i*3]=(Math.random()-0.5)*0.04;
+      breathPos[i*3+1]=-0.02+Math.random()*0.02;
+      breathPos[i*3+2]=-0.16;
+      breathLife[i]=0.55+Math.random()*0.25;
+    }
+  }
+  for(let i=0;i<BREATH_N;i++){
+    if(breathLife[i]<=0){breathPos[i*3+1]=-10;continue;}
+    breathLife[i]-=dt;
+    breathPos[i*3+2]-=(0.18+speed*0.01)*dt;
+    breathPos[i*3+1]+=0.06*dt;
+    breathPos[i*3]+=Math.sin(time*6+breathSeed[i])*0.01*dt;
+  }
+  breathGeo.attributes.position.needsUpdate=true;
+  breathMat.opacity=0.22+night*0.28;
+}
+
+function mixDay(a,b,t){return a+(b-a)*t;}
 
 export {
   riderG, boardG, blob,

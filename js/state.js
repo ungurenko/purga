@@ -9,7 +9,7 @@ export const FREERIDE_SOFT=42,FREERIDE_HARD=55;
 
 export const G={
   state:'menu',time:0,dist:0,score:0,speed:8,cruise:13,
-  x:0,vx:0,y:16,py:0,vy:0,grounded:true,
+  x:0,vx:0,y:16,py:0,vy:0,grounded:true,gvy:0,prevGroundY:16,
   stage:1,combo:0,mult:1,maxSpeed:0,
   crashT:0,crashReason:'',
   spinAngle:0,spinVel:0,visualSpin:0,

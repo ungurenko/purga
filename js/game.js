@@ -5,13 +5,19 @@ import {
   obstacles, pendingRows, track
 } from './state.js';
 import {
-  renderer, scene, camera, skyMat, groundTex, TILE_LEN,
-  forest, resetForestTree, lanterns, LANT_N, LANT_SP,
-  snow, snowMat, snowGeo, snowPos, snowSeed, SNOW_N,
-  spPos, spVel, spLife, SP_N, spGeo, emitSpray, warmPt, mountGrp,
-  terrainHeight, terrainSlope, updateTerrain
+  renderer, scene, camera, skyMat,
+  moonLight, warmPt,
+  forestUpdate, lanterns, LANT_N, LANT_SP,
+  terrainHeight, terrainSlope, updateTerrain,
+  sparkleU, snowU, trailEmit, trailUpdate, trailReset,
+  mountainsUpdate, blobShadowUpdate, lanternLightsUpdate
 } from './scene.js';
-import { riderG, boardG, riderPose } from './rider.js';
+import { composer, setGrade } from './postfx.js';
+import { qualityInit, qualityFrame, qualityTier } from './quality.js';
+import { riderG, boardG, riderPose, riderWeather } from './rider.js';
+import {
+  emitSpray, emitPowderBurst, blizzardUpdate
+} from './blizzard.js';
 import { processSpawns } from './obstacles.js';
 import { THEME_NIGHT, THEME_DAY, dayFactor, themeTick, applyTheme, toggleTheme } from './theme.js';
 import { A, initAudio, playTone, SFX, toggleMute } from './audio.js';
@@ -24,6 +30,7 @@ const gyAt=(x=G.x,z=0)=>terrainHeight(x,G.dist-z);
 function syncGroundY(){
   const g=gyAt();
   G.y=g;G.py=0;
+  G.prevGroundY=g;
   return g;
 }
 function nearMiss(){
@@ -40,6 +47,7 @@ function crash(reason){
   comboReset();SFX.crash();flashScreen();
   addTrauma(0.85);
   impulseDip(0.4);
+  emitPowderBurst(G.x,G.y+0.1,true);
   emitSpray(40,G.x,G.y+0.1,0,{sx:1.2,vx:0,vy:2,vyr:4,vz:3,vsx:5});
 }
 function rampLaunch(){
@@ -60,14 +68,15 @@ function doJump(){
 }
 function onLand(){
   const air=G.time-G.takeoffT;
-  G.grounded=true;G.vy=0;
+  G.grounded=true;G.vy=0;G.gvy=0;
   syncGroundY();
   G.landAbsorb=Math.min(0.5,Math.max(0.18,air*0.12));
   const hard=air>0.55;
   impulseDip(hard?0.35:0.18);
   addTrauma(hard?0.22:0.15);
   SFX.land();
-  emitSpray(24,G.x,G.y+0.05,0,{sx:0.9,vx:0,vy:1.5,vyr:3,vz:4,vsx:3});
+  emitPowderBurst(G.x,G.y+0.05,hard);
+  emitSpray(hard?16:10,G.x,G.y+0.05,0,{sx:0.9,vx:0,vy:1.5,vyr:3,vz:4,vsx:3});
   if(air>0.35){
     const total=Math.abs(G.spinAngle);
     const norm=((G.spinAngle%360)+360)%360;
@@ -118,19 +127,12 @@ function checkStage(){
 
 /* ═══════════ обновление мира ═══════════ */
 function moveWorld(scroll,dt){
-  groundTex.offset.y+=scroll/TILE_LEN;
   updateTerrain(G.dist);
-  for(const f of forest){
-    f.m.position.z+=scroll;
-    /* courseZ = dist − z постоянен при скролле → высота та же; при ресете пересчёт */
-    f.m.rotation.z=Math.sin(G.time*0.8+f.m.userData.sway)*0.012;
-    if(f.m.position.z>26)resetForestTree(f,false,G.dist);
-  }
+  forestUpdate(G.dist,scroll,G.time);
   for(const l of lanterns){
     l.g.position.z+=scroll;
     if(l.g.position.z>14){
       l.g.position.z-=LANT_N*LANT_SP;
-      /* новый одиночный маркер где-то на склоне */
       l.x=(Math.random()<0.5?-1:1)*rand(5,32);
     }
     const lx=l.x??l.g.position.x;
@@ -139,47 +141,30 @@ function moveWorld(scroll,dt){
     const glowB=THEME_NIGHT.glowBase+(THEME_DAY.glowBase-THEME_NIGHT.glowBase)*dayFactor;
     l.sp.material.opacity=glowB*(0.84+0.32*Math.sin(G.time*7+l.phase));
   }
-  mountGrp.position.x=-G.x*0.18;
+  mountainsUpdate(G.x,dayFactor);
   const gy=terrainHeight(G.x*0.5,G.dist+5);
   warmPt.position.set(G.x*0.5,gy+2.4,-5);
   const warmBase=THEME_NIGHT.warmI+(THEME_DAY.warmI-THEME_NIGHT.warmI)*dayFactor;
   warmPt.intensity=warmBase+Math.sin(G.time*11)*1.2*(1-dayFactor);
+  const shTgt=moonLight.target.position;
+  shTgt.set(G.x,terrainHeight(G.x,G.dist),0);
+  const dir=moonLight.position.clone().sub(shTgt).normalize();
+  moonLight.position.copy(shTgt).addScaledVector(dir,60);
+  moonLight.target.updateMatrixWorld();
+  const airH=G.grounded?0:G.py;
+  blobShadowUpdate(G.x,G.dist,airH,terrainSlope(G.x,G.dist));
+  if(G.grounded&&G.speed>4&&G.state==='running')trailEmit(G.x);
+  trailUpdate(G.dist,scroll,dt);
+  lanternLightsUpdate(dayFactor,qualityTier()>0);
+  snowU.wind.value=G.windAmp;
 }
-function snowUpdate(dt,scroll){
-  snowMat.opacity=lerp(snowMat.opacity,G.snowOpT,Math.min(1,dt));
-  snowMat.size=lerp(snowMat.size,G.snowSizeT,Math.min(1,dt));
+function weatherUpdate(dt,scroll){
   scene.fog.density=lerp(scene.fog.density,G.fogT,Math.min(1,dt*0.7));
-  const fall=(1.4+G.stage*0.5);
-  const windX=Math.sin(G.time*0.4)*G.windAmp;
-  for(let i=0;i<SNOW_N;i++){
-    const i3=i*3;
-    snowPos[i3+1]-=fall*(0.7+0.6*Math.abs(Math.sin(snowSeed[i])))*dt;
-    snowPos[i3]+=(windX*2+Math.sin(G.time*0.7+snowSeed[i])*0.4)*dt;
-    snowPos[i3+2]+=scroll;
-    if(snowPos[i3+1]<0){snowPos[i3+1]+=28;snowPos[i3]=rand(-70,70);}
-    if(snowPos[i3+2]>20)snowPos[i3+2]-=110;
-    else if(snowPos[i3+2]<-90)snowPos[i3+2]+=110;
-    if(snowPos[i3]>70)snowPos[i3]-=140;
-    else if(snowPos[i3]<-70)snowPos[i3]+=140;
-  }
-  snowGeo.attributes.position.needsUpdate=true;
-}
-function sprayUpdate(dt,scroll){
-  for(let i=0;i<SP_N;i++){
-    if(spLife[i]<=0)continue;
-    spLife[i]-=dt;
-    const i3=i*3;
-    if(spLife[i]<=0){spPos[i3+1]=-60;continue;}
-    spVel[i3+1]-=12*dt;
-    spPos[i3]+=spVel[i3]*dt;
-    spPos[i3+1]+=spVel[i3+1]*dt;
-    spPos[i3+2]+=spVel[i3+2]*dt+scroll;
-    const floorY=terrainHeight(spPos[i3],G.dist-spPos[i3+2])+0.02;
-    if(spPos[i3+1]<floorY){spPos[i3+1]=floorY;spVel[i3+1]*=-0.3;}
-  }
-  spGeo.attributes.position.needsUpdate=true;
-  spGeo.attributes.aLife.needsUpdate=true;
-  spGeo.attributes.aSize.needsUpdate=true;
+  blizzardUpdate(dt,scroll,{
+    stage:G.stage,windAmp:G.windAmp,time:G.time,speed:G.speed,
+    dist:G.dist,day:dayFactor,snowOpT:G.snowOpT,snowSizeT:G.snowSizeT,
+    x:G.x,y:G.y,grounded:G.grounded,vx:G.vx
+  });
 }
 
 /* ═══════════ управление состоянием ═══════════ */
@@ -187,14 +172,14 @@ function reset(){
   G.score=0;G.dist=0;G.stage=1;G.cruise=13;G.combo=0;G.mult=1;
   G.speed=10;G.x=0;G.vx=0;G.vy=0;G.grounded=true;
   G.spinAngle=0;G.spinVel=0;G.visualSpin=0;G.grabTime=0;G.grabbing=false;
-  G.maxSpeed=0;G.jumpBuf=0;
+  G.maxSpeed=0;G.jumpBuf=0;G.gvy=0;
+  trailReset();
   G.fogT=0.015;G.snowOpT=0.6;G.snowSizeT=0.11;G.windAmp=0;
   track.pathX=0;pendingRows.length=0;
   for(const o of obstacles)scene.remove(o.group);
   obstacles.length=0;
   track.spawnCursor=0;
   scene.fog.density=G.fogT;
-  snowMat.opacity=G.snowOpT;snowMat.size=G.snowSizeT;
   riderG.rotation.set(0,0,0);
   const gy0=syncGroundY();
   riderG.position.set(0,gy0,0);
@@ -240,6 +225,7 @@ function update(dt){
   G.time+=dt;
   themeTick(dt);
   skyMat.uniforms.uTime.value=G.time;
+  sparkleU.value=G.time;
   if(G.state==='menu'){
     G.speed=lerp(G.speed,8,dt*2);
     const tx=Math.sin(G.time*0.4)*6;
@@ -282,9 +268,25 @@ function update(dt){
       if(G.grabbing)G.grabTime+=dt;
     }
     G.jumpBuf=Math.max(0,G.jumpBuf-dt);
-    /* world-Y: баллистика, приземление на mesh */
+    /* world-Y: прилипание к рельефу + вылет с гребней и крутых перегибов */
     if(G.grounded){
-      syncGroundY();
+      const g=gyAt();
+      const gvyInst=(g-G.prevGroundY)/Math.max(dt,1e-4);
+      G.prevGroundY=g;
+      G.y=g;G.py=0;
+      G.gvy=lerp(G.gvy,gvyInst,0.3);
+      /* резкий перегиб после подъёма (гребень/трамплин) — инерция несёт вверх */
+      const crest=G.gvy>1.6&&gvyInst<G.gvy-5.5;
+      /* большой провал на скорости — склон уходит из-под ног */
+      const drop=gvyInst<-9&&G.speed>14;
+      if(crest||drop){
+        G.grounded=false;
+        G.vy=clamp(G.gvy,-3,11);
+        G.takeoffT=G.time;
+        emitSpray(12,G.x,G.y+0.05,0.4,{vx:0,vy:1.2,vz:4});
+        if(crest){popup('ГРЕБЕНЬ!','info');SFX.ramp();impulseDip(-0.16);}
+        else addTrauma(0.1);
+      }
     }else{
       G.y+=G.vy*dt;
       G.vy-=24*dt;
@@ -363,8 +365,14 @@ function update(dt){
   }
   riderPose(dt);
   cameraUpdate(dt);
-  snowUpdate(dt,scroll);
-  sprayUpdate(dt,scroll);
+  weatherUpdate(dt,scroll);
+  const speedN=clamp(G.speed/36,0,1);
+  const frost=clamp((G.stage-1)/7*0.55+speedN*0.4,0,1)*(1-dayFactor*0.35);
+  setGrade({day:dayFactor,speedN,frost,time:G.time});
+  riderWeather({
+    day:dayFactor,speed:G.speed,stage:G.stage,time:G.time,
+    grounded:G.grounded,state:G.state,frost,dt
+  });
   /* HUD */
   if(G.state==='running'||G.state==='crash'){
     $('speedVal').textContent=Math.round(G.speed*3.6);
@@ -397,22 +405,27 @@ export function boot(){
   const mb=$('menuBest');
   if(best.score>0)mb.textContent=`ЛУЧШИЙ РЕЗУЛЬТАТ: ${fmt(best.score)} ОЧКОВ · ${fmt(best.dist)} М`;
   applyTheme(dayFactor);
+  riderG.traverse(o=>{if(o.isMesh)o.castShadow=true;});
   reset();
   G.state='menu';
   const clock=new THREE.Clock();
   function animate(){
     requestAnimationFrame(animate);
     const dt=Math.min(clock.getDelta(),0.05);
+    qualityFrame(dt);
     if(G.state!=='paused')update(dt);
     else themeTick(dt);
-    renderer.render(scene,camera);
+    if(qualityTier()===0)renderer.render(scene,camera);
+    else composer.render();
   }
   addEventListener('resize',()=>{
     camera.aspect=innerWidth/innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth,innerHeight);
+    composer.setSize(innerWidth,innerHeight);
   });
   addEventListener('pointerdown',()=>{initAudio();if(A.ctx&&A.ctx.state==='suspended')A.ctx.resume();},{once:false});
+  qualityInit();
   animate();
 }
 
